@@ -37,6 +37,8 @@ apply; the equivalent is editing the device tree source or `extlinux.conf`
 
 ## Sizes
 
-Typical numbers (2024-era package versions): rootfs contents ~1.4 GB (with the extra
-tools; ~600 MB base only), image file ~2.2 GB uncompressed, ~600 MB xz.
-`IMG_ROOTFS_SIZE_MB` fixes the partition size instead of auto-sizing.
+Measured on the first full build (2026-09-04, 679 packages including the extra
+tools): rootfs contents 878 MB, rootfs partition 1480 MiB (contents + 10 % +
+`IMG_ROOTFS_MARGIN_MB`), image file 1.7 GiB uncompressed, 384 MB as `.img.xz`.
+`IMG_ROOTFS_SIZE_MB` fixes the partition size instead of auto-sizing; the first boot
+grows the partition to the medium anyway.

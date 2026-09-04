@@ -29,7 +29,7 @@ The work is split across repositories (see [docs/00-overview.md](docs/00-overvie
 git clone https://github.com/frankurcrazy/tinker-edge-r && cd tinker-edge-r
 ./build.sh builder      # docker image (Ubuntu 22.04 + cross toolchains + debootstrap)
 ./build.sh fetch        # repo init/sync -> src/{kernel,u-boot,rkbin,npu,rootfs}
-./build.sh all          # uboot -> kernel -> rootfs -> image  (out/images/*.img.xz)
+./build.sh all          # uboot -> kernel -> rootfs -> image -> verify  (out/images/*.img.xz)
 ```
 
 Write the image to a microSD card (or to the eMMC, see [docs/80-flashing.md](docs/80-flashing.md)):

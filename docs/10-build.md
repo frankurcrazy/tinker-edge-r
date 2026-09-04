@@ -26,7 +26,9 @@
 ./build.sh kernel      # out/kernel/
 ./build.sh rootfs      # out/rootfs/root/   (privileged container, root-owned tree)
 ./build.sh image       # out/images/        (privileged container)
-./build.sh all         # uboot kernel rootfs image
+./build.sh verify      # static checks of the newest image: GPT offsets/flags, extlinux, DTB
+                       # properties (TCPM, role switch, TC358743, ...), rootfs files/services via debugfs
+./build.sh all         # uboot kernel rootfs image verify
 ./build.sh shell       # interactive shell in the container (PRIVILEGED=1 ./build.sh shell for root)
 ./build.sh clean       # remove out/ (uses the container to delete root-owned files)
 ```
@@ -84,6 +86,10 @@ the 6.1 kernel and U-Boot), `gcc-9`/`gcc-10` cross compilers (for the legacy tre
 * `rootfs` and `image` run `--privileged` as root (debootstrap needs `chroot`, `mount`,
   `mknod`; the image stage reads the root-owned tree).  `out/rootfs` is root-owned;
   `./build.sh clean` removes it through the container.
+* The rootfs stage mounts `binfmt_misc` inside the container to see the host's
+  qemu-aarch64 registration, runs `debootstrap --foreign` and copies
+  `qemu-aarch64-static` into the tree for the second stage, so it works whether or not
+  the host registration uses the `F` flag.
 * The workspace is bind-mounted at the same absolute path inside the container, so
   paths in logs are valid on the host.  `ccache/` under the workspace is reused across builds.
 

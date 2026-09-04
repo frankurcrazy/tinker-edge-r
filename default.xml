@@ -20,7 +20,8 @@
        (branch tinker-edge-r = develop-6.1-rt45 + rk3399pro-tinker-edge-r DTS + fragments). -->
   <project name="frankurcrazy/TB-RK3399ProD-Kernel-6.1"
            path="src/kernel"
-           revision="tinker-edge-r"
+           revision="5aafcc61c1086a3cd29a1053a71c3149edb8ec21"
+           upstream="tinker-edge-r"
            clone-depth="1" />
 
   <!-- ASUS U-Boot 2017.09 (Rockchip vendor tree) for the Tinker Edge R.
@@ -28,7 +29,8 @@
        (patches/u-boot/ holds the same patch). -->
   <project name="frankurcrazy/tinker-edge-r-debian-u-boot"
            path="src/u-boot"
-           revision="tinker-edge-r"
+           revision="be4c4ee5fe23b8d60afcea05175ded4bf5cb5603"
+           upstream="tinker-edge-r"
            clone-depth="1" />
 
   <!-- Rockchip binary blobs (DDR init, miniloader, BL31/BL32) and packing tools. -->
@@ -48,7 +50,8 @@
   <!-- Root filesystem builder (debootstrap + overlays + NPU/gadget/HDMI-RX integration). -->
   <project name="frankurcrazy/tinker-edge-r-rootfs"
            path="src/rootfs"
-           revision="main" />
+           revision="3aef28b68fcaaae9be3b003b44b48eb6c5dd2f71"
+           upstream="main" />
 
   <!-- Optional: ASUS's original 4.4 kernel, only synced with `repo init -g legacy` (reference / fallback). -->
   <project name="frankurcrazy/tinker-edge-r-debian-kernel"

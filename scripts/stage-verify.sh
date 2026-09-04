@@ -26,13 +26,14 @@ check '[ "$(part_start 2)" = 24576 ]'  "trust partition starts at LBA 24576"
 check '[ "$(part_start 4)" = "'"$IMG_SECTOR_BOOT"'" ]' "boot partition starts at LBA $IMG_SECTOR_BOOT"
 check 'grep -qE "^ +4 .* boot$" "$W/gpt.txt"'   "partition 4 named boot"
 check 'grep -qE "^ +5 .* rootfs$" "$W/gpt.txt"' "partition 5 named rootfs"
-check 'sgdisk -i 4 "$IMG" | grep -q "legacy BIOS bootable"' "boot partition has the legacy-bootable attribute (U-Boot distro scan)"
+check 'sgdisk -A 4:show "$IMG" | grep -q "legacy BIOS bootable"' "boot partition has the legacy-bootable attribute (U-Boot distro scan)"
 ROOT_PARTUUID="$(sgdisk -i 5 "$IMG" | sed -n 's/^Partition unique GUID: //p' | tr 'A-F' 'a-f')"
 BOOT_PARTUUID="$(sgdisk -i 4 "$IMG" | sed -n 's/^Partition unique GUID: //p' | tr 'A-F' 'a-f')"
 
 # ---- raw blobs -----------------------------------------------------------------------
 dd if="$IMG" of="$W/idb.bin" bs=512 skip=64 count=8 status=none
-check 'head -c 4 "$W/idb.bin" | xxd -p | grep -qi "^3b8cdab5"' "idbloader present at LBA 64 (RK33 header magic)"
+# mkimage -T rksd RC4-scrambles the 512-byte header; the 0x0ff0aa55 signature shows up as 3b8cdcfc be9f9d51.
+check 'head -c 8 "$W/idb.bin" | xxd -p | grep -qi "^3b8cdcfcbe9f9d51"' "idbloader present at LBA 64 (scrambled RK boot-ROM signature)"
 dd if="$IMG" of="$W/uboot.bin" bs=512 skip=16384 count=8 status=none
 check 'grep -q "LOADER" "$W/uboot.bin" || strings "$W/uboot.bin" | grep -q "LOADER"' "uboot.img present at LBA 16384 (loaderimage header)"
 dd if="$IMG" of="$W/trust.bin" bs=512 skip=24576 count=8 status=none
@@ -71,8 +72,9 @@ check 'dtprop "mmc0 = \"/mmc@fe330000\"\|mmc0 = \"/sdhci@fe330000\""' "eMMC is m
 # ---- rootfs ---------------------------------------------------------------------------
 dd if="$IMG" of="$W/rootfs.img" bs=1M skip=$(( $(part_start 5) / 2048 )) count=$(( ( $(part_end 5) - $(part_start 5) + 1 ) / 2048 + 1 )) status=none
 rf() { dbg "cat $1" "$W/rootfs.img"; }
-rfls() { dbg "ls $1" "$W/rootfs.img" | tr -s ' \n' '\n' | grep -v '^$'; }
-check 'rf /etc/os-release | grep -q "VERSION_ID=\"22.04\""' "rootfs is Ubuntu 22.04"
+rfls() { dbg "ls $1" "$W/rootfs.img" | tr -s ' \t\n' '\n' | grep -v '^$'; }
+rfexists() { dbg "stat $1" "$W/rootfs.img" | grep -q '^Inode:'; }
+check 'rf /usr/lib/os-release | grep -q "VERSION_ID=\"22.04\""' "rootfs is Ubuntu 22.04"
 check 'rf /etc/fstab | grep -q "PARTUUID=$ROOT_PARTUUID .*/ "' "fstab root by PARTUUID"
 check 'rf /etc/fstab | grep -q "PARTUUID=$BOOT_PARTUUID .*/boot"' "fstab /boot by PARTUUID"
 check 'rf /etc/hostname | grep -q "$ROOTFS_HOSTNAME"' "hostname $ROOTFS_HOSTNAME"
@@ -84,7 +86,7 @@ check 'rfls /lib/firmware/rtw88 | grep -q rtw8822c_fw.bin' "RTL8822CE Wi-Fi firm
 check 'rfls /lib/firmware/rtl_bt | grep -q rtl8822cu_fw.bin' "RTL8822CE Bluetooth firmware"
 check 'rfls /usr/share/npu_fw | grep -q boot.img' "NPU firmware set in /usr/share/npu_fw"
 for f in /usr/bin/npu_transfer_proxy /usr/bin/upgrade_tool /usr/bin/npu_powerctrl /usr/bin/npu_upgrade /usr/lib/aarch64-linux-gnu/librknn_api.so /usr/include/rknn_api.h /usr/local/sbin/npu-firmware-load /usr/local/sbin/usb-gadget-setup /usr/local/sbin/hdmirx-setup /usr/local/sbin/tinker-first-boot /usr/share/hdmirx/edid-1080p30.bin /etc/default/usb-gadget /etc/systemd/network/20-usb-gadget.network; do
-    check 'rfls $(dirname $f) | grep -qx $(basename $f)' "$f"
+    check 'rfexists $f' "$f"
 done
 for u in npu-firmware.service npu-transfer-proxy.service usb-gadget.service ssh.service systemd-networkd.service; do
     check 'rfls /etc/systemd/system/multi-user.target.wants | grep -qx $u' "enabled: $u"
@@ -92,7 +94,7 @@ done
 check 'rfls /etc/systemd/system/sysinit.target.wants | grep -qx tinker-first-boot.service' "enabled: tinker-first-boot.service"
 check 'rfls /usr/local/lib/python3.10/dist-packages | grep -q rknnlite' "rknn_toolkit_lite installed for python3.10"
 check '[ "$(dbg "stat /usr/local/sbin/usb-gadget-setup" "$W/rootfs.img" | sed -n "s/.*User: *\([0-9]*\).*/\1/p" | head -1)" = 0 ]' "overlay files are root-owned"
-check 'rf /etc/machine-id | grep -qv .' "machine-id empty (regenerated on first boot)"
+check '[ -z "$(rf /etc/machine-id)" ]' "machine-id empty (regenerated on first boot)"
 check '! rfls /etc/ssh | grep -q ssh_host_' "no baked-in SSH host keys"
 
 echo
