@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * ASUS Tinker Edge R - variant with the HDMI-RX board (Geekworm X1301,
+ * TC358743) plugged into the CSI1 connector instead of CSI0.
+ * Select it from the extlinux boot menu ("hdmirx-csi1" entry).
+ */
+
+/dts-v1/;
+#include "rk3399pro-tinker-edge-r.dtsi"
+
+/ {
+	model = "ASUS Tinker Edge R (HDMI-RX on CSI1)";
+};
+
+&hdmirx_csi0 {
+	status = "disabled";
+};
+
+&hdmirx_csi1 {
+	status = "okay";
+};

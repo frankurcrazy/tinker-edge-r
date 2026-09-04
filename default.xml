@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  repo manifest for the ASUS Tinker Edge R (RK3399Pro) Ubuntu 22.04 image.
+
+  Usage (from this repository's checkout, see docs/10-build.md):
+      ./build.sh fetch          # repo init -u <this repo> && repo sync
+  or by hand:
+      repo init -u https://github.com/frankurcrazy/tinker-edge-r -b main
+      repo sync -c
+
+  Every project is pinned to a commit (revision=) with the branch it lives on
+  (upstream=) so shallow clones work.  Update pins with:
+      repo manifest -r -o default.xml.new
+-->
+<manifest>
+  <remote name="github" fetch="https://github.com/" />
+  <default remote="github" sync-j="4" sync-c="true" />
+
+  <!-- Linux 6.1 Rockchip vendor kernel: Toybrick RK3399ProD base + Tinker Edge R port
+       (branch tinker-edge-r = develop-6.1-rt45 + rk3399pro-tinker-edge-r DTS + fragments). -->
+  <project name="frankurcrazy/TB-RK3399ProD-Kernel-6.1"
+           path="src/kernel"
+           revision="tinker-edge-r"
+           clone-depth="1" />
+
+  <!-- ASUS U-Boot 2017.09 (Rockchip vendor tree) for the Tinker Edge R.
+       branch tinker-edge-r = linux4.4-rk3399pro + one build fix for GNU make 4.3
+       (patches/u-boot/ holds the same patch). -->
+  <project name="frankurcrazy/tinker-edge-r-debian-u-boot"
+           path="src/u-boot"
+           revision="tinker-edge-r"
+           clone-depth="1" />
+
+  <!-- Rockchip binary blobs (DDR init, miniloader, BL31/BL32) and packing tools. -->
+  <project name="rockchip-linux/rkbin"
+           path="src/rkbin"
+           revision="3e288fe814e059dd06833495f845cab04ac20a5c"
+           upstream="master"
+           clone-depth="1" />
+
+  <!-- RK3399Pro NPU userspace: NPU firmware (USB mode), npu_transfer_proxy, librknn_api. -->
+  <project name="airockchip/RK3399Pro_npu"
+           path="src/npu"
+           revision="8858114555f1700e41e185b14ec3d266342f8059"
+           upstream="master"
+           clone-depth="1" />
+
+  <!-- Root filesystem builder (debootstrap + overlays + NPU/gadget/HDMI-RX integration). -->
+  <project name="frankurcrazy/tinker-edge-r-rootfs"
+           path="src/rootfs"
+           revision="main" />
+
+  <!-- Optional: ASUS's original 4.4 kernel, only synced with `repo init -g legacy` (reference / fallback). -->
+  <project name="frankurcrazy/tinker-edge-r-debian-kernel"
+           path="src/kernel-legacy"
+           revision="ab830709a6ff8a36a7bb1defd96ae19c14d78108"
+           upstream="linux4.4-rk3399pro"
+           clone-depth="1"
+           groups="notdefault,legacy" />
+</manifest>

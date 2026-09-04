@@ -1,0 +1,8 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * ASUS Tinker Edge R - default configuration:
+ *   HDMI-RX (Geekworm X1301, TC358743) on the CSI0 connector, CSI1 idle.
+ */
+
+/dts-v1/;
+#include "rk3399pro-tinker-edge-r.dtsi"

@@ -1,0 +1,13 @@
+# repo workspace and sources synced by ./build.sh fetch
+/.repo/
+/src/
+
+# build outputs
+/out/
+/ccache/
+*.log
+
+# editor / OS noise
+*.swp
+*~
+.DS_Store

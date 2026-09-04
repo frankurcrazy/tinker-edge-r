@@ -1,0 +1,1332 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * ASUS Tinker Edge R (Rockchip RK3399Pro) - board description for the
+ * Rockchip 6.1 vendor kernel.
+ *
+ * Ported from ASUS's Linux 4.4 rk3399pro-tinker_edge_r.dts (board wiring,
+ * regulators, pin usage) using the Toybrick RK3399ProD 6.1 files and the
+ * rk3399pro-evb-v11-linux 6.1 file (Type-C wiring) as templates for the
+ * 6.1 bindings.  See docs/40-kernel-port.md in the tinker-edge-r build
+ * repository for the node-by-node mapping and the reasons behind each choice.
+ *
+ * Hardware summary (ASUS schematic block diagram):
+ *  - RK3399Pro, 4 GB LPDDR4 (CPU side), 2 GB LPDDR3 (NPU side), 16 GB eMMC
+ *  - NPU attached over USB (USB20_NPU + USB30_NPU through a GL3523 hub),
+ *    firmware pushed by userspace at boot (npu_upgrade / upgrade_tool)
+ *  - PCIe x1 -> M.2 Key-E (RTL8822CE Wi-Fi; Bluetooth over USB 2.0)
+ *  - RK809-3 PMIC (I2C0), FAN53555 for VDD_CPU_B (I2C0) and VDD_GPU (I2C8)
+ *  - USB Type-C with FUSB302B (I2C8) on usbdrd3_0 (dual role, SuperSpeed)
+ *  - HDMI, two RPi-style 15-pin CSI-2 connectors (CSI0/I2C1, CSI1/I2C2)
+ *  - RTL8211F gigabit PHY (RGMII, external 125 MHz clock)
+ *  - Debug console: UART0 on the 40-pin header (pins 8/10), 115200 baud
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/pinctrl/rockchip.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/pwm/pwm.h>
+#include <dt-bindings/sensor-dev.h>
+#include <dt-bindings/usb/pd.h>
+#include "rk3399pro.dtsi"
+#include "rk3399-linux.dtsi"
+#include "rk3399-opp.dtsi"
+
+/* No U-Boot logo hand-over on this image (see Toybrick prod-linux). */
+/delete-node/ &drm_logo;
+
+/ {
+	model = "ASUS Tinker Edge R";
+	compatible = "asus,tinker-edge-r", "rockchip,rk3399pro-tinker-edge-r",
+		     "rockchip,rk3399pro";
+
+	aliases {
+		mmc0 = &sdhci;	/* eMMC  -> /dev/mmcblk0 */
+		mmc1 = &sdmmc;	/* microSD -> /dev/mmcblk1 */
+		ethernet0 = &gmac;
+	};
+
+	chosen {
+		/* Overridden by the bootloader (extlinux append); kept as a sane default. */
+		bootargs = "earlycon=uart8250,mmio32,0xff180000 console=ttyFIQ0,115200n8 console=tty0 swiotlb=1 coherent_pool=1m";
+	};
+
+	adc-keys {
+		compatible = "adc-keys";
+		io-channels = <&saradc 2>;
+		io-channel-names = "buttons";
+		poll-interval = <100>;
+		keyup-threshold-microvolt = <1800000>;
+
+		esc-key {
+			linux,code = <KEY_ESC>;
+			label = "esc";
+			press-threshold-microvolt = <1310000>;
+		};
+
+		menu-key {
+			linux,code = <KEY_MENU>;
+			label = "menu";
+			press-threshold-microvolt = <987000>;
+		};
+
+		home-key {
+			linux,code = <KEY_HOME>;
+			label = "home";
+			press-threshold-microvolt = <624000>;
+		};
+
+		vol-down-key {
+			linux,code = <KEY_VOLUMEDOWN>;
+			label = "volume down";
+			press-threshold-microvolt = <300000>;
+		};
+
+		vol-up-key {
+			linux,code = <KEY_VOLUMEUP>;
+			label = "volume up";
+			press-threshold-microvolt = <17000>;
+		};
+	};
+
+	clkin_gmac: external-gmac-clock {
+		compatible = "fixed-clock";
+		clock-frequency = <125000000>;
+		clock-output-names = "clkin_gmac";
+		#clock-cells = <0>;
+	};
+
+	/* 27 MHz crystal on the Geekworm X1301 / Auvidea B101 HDMI-RX boards. */
+	tc358743_refclk: tc358743-refclk {
+		compatible = "fixed-clock";
+		clock-frequency = <27000000>;
+		clock-output-names = "tc358743_refclk";
+		#clock-cells = <0>;
+	};
+
+	gpio-leds {
+		compatible = "gpio-leds";
+
+		pwr-led {
+			label = "pwr-led";
+			gpios = <&gpio0 RK_PA5 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "default-on";
+			retain-state-suspended;
+		};
+
+		act-led {
+			label = "act-led";
+			gpios = <&gpio0 RK_PA3 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "mmc0";
+		};
+
+		rsv-led {
+			label = "rsv-led";
+			gpios = <&gpio0 RK_PB1 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "none";
+		};
+	};
+
+	hdmi_sound: hdmi-sound {
+		status = "okay";
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,name = "rockchip,hdmi";
+
+		simple-audio-card,cpu {
+			sound-dai = <&i2s2>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&hdmi>;
+		};
+	};
+
+	rk809-sound {
+		status = "okay";
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,name = "rockchip,rk809";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,widgets =
+			"Microphone", "Mic Jack",
+			"Headphone", "Headphone Jack";
+		simple-audio-card,routing =
+			"Mic Jack", "MICBIAS1",
+			"IN1P", "Mic Jack",
+			"Headphone Jack", "HPOL",
+			"Headphone Jack", "HPOR";
+
+		simple-audio-card,cpu {
+			sound-dai = <&i2s1>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&rk809_codec>;
+		};
+	};
+
+	rk_headset {
+		compatible = "rockchip_headset";
+		headset_gpio = <&gpio0 RK_PB5 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&hp_det>;
+		io-channels = <&saradc 3>;
+	};
+
+	sdhci_pwrseq: sdhci-pwrseq {
+		compatible = "mmc-pwrseq-emmc";
+		pinctrl-0 = <&sdhci_reset>;
+		pinctrl-names = "default";
+		reset-gpios = <&gpio2 RK_PA4 GPIO_ACTIVE_HIGH>;
+	};
+
+	/*
+	 * Referenced by rk3399pro.dtsi's sdio0 node.  Nothing sits on SDIO on this
+	 * board (Wi-Fi is PCIe), so the pwrseq and sdio0 stay disabled.
+	 */
+	sdio_pwrseq: sdio-pwrseq {
+		compatible = "mmc-pwrseq-simple";
+		clocks = <&rk809 1>;
+		clock-names = "ext_clock";
+		status = "disabled";
+	};
+
+	vcc_phy: vcc-phy-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_phy";
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	vcc5v0_sys: vccsys {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc5v0_sys";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+	};
+
+	/*
+	 * VDD_LOG is a PWM2-driven rail configured by U-Boot; the kernel never
+	 * touches it (same approach as the Toybrick 6.1 port, dmc stays off).
+	 */
+	vdd_log: vdd-log {
+		compatible = "regulator-fixed";
+		regulator-name = "vdd_log";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <900000>;
+		regulator-max-microvolt = <900000>;
+	};
+
+	/* M.2 Key-E WL_REG_ON (GPIO2_D3).  On 4.4 the SDIO pwrseq drove it; here the
+	 * PCIe host enables it before link training via vpcie3v3-supply. */
+	vcc_wifi: vcc-wifi-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_wifi";
+		enable-active-high;
+		gpio = <&gpio2 RK_PD3 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&wifi_enable_h>;
+		regulator-always-on;
+		regulator-boot-on;
+		startup-delay-us = <100000>;
+		vin-supply = <&vcc3v3_sys>;
+	};
+
+	/* M.2 Key-E BT_RST / BT_REG_ON (GPIO2_D4): keep the USB Bluetooth part enabled. */
+	vcc_bt: vcc-bt-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_bt";
+		enable-active-high;
+		gpio = <&gpio2 RK_PD4 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&bt_enable_h>;
+		regulator-always-on;
+		regulator-boot-on;
+		vin-supply = <&vcc3v3_sys>;
+	};
+
+	/* Type-C VBUS source switch (VCC5V0_TYPEC0_EN, GPIO4_D1), driven by TCPM. */
+	vbus_typec: vbus-typec-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "vbus_typec";
+		enable-active-high;
+		gpio = <&gpio4 RK_PD1 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&vcc5v0_typec0_en>;
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		vin-supply = <&vcc5v0_sys>;
+	};
+
+	/* CSI0 connector: 3.3 V camera power switch (GPIO0_B0) and CAM_GPIO/enable (GPIO2_A3). */
+	vcc_csi0: vcc-csi0-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_csi0";
+		enable-active-high;
+		gpio = <&gpio0 RK_PB0 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&csi0_pwr_en>;
+		regulator-always-on;
+		regulator-boot-on;
+		startup-delay-us = <20000>;
+		vin-supply = <&vcc3v3_sys>;
+	};
+
+	csi0_enable: csi0-enable-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "csi0_enable";
+		enable-active-high;
+		gpio = <&gpio2 RK_PA3 GPIO_ACTIVE_HIGH>;
+		regulator-always-on;
+		regulator-boot-on;
+		vin-supply = <&vcc_csi0>;
+	};
+
+	/* CSI1 connector: camera power (GPIO2_B3) and CAM_GPIO/enable (GPIO2_A2). */
+	vcc_csi1: vcc-csi1-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_csi1";
+		enable-active-high;
+		gpio = <&gpio2 RK_PB3 GPIO_ACTIVE_HIGH>;
+		regulator-always-on;
+		regulator-boot-on;
+		startup-delay-us = <20000>;
+		vin-supply = <&vcc3v3_sys>;
+	};
+
+	csi1_enable: csi1-enable-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "csi1_enable";
+		enable-active-high;
+		gpio = <&gpio2 RK_PA2 GPIO_ACTIVE_HIGH>;
+		regulator-always-on;
+		regulator-boot-on;
+		vin-supply = <&vcc_csi1>;
+	};
+};
+
+&cdn_dp {
+	/* DisplayPort over Type-C needs an extcon bridge the TCPM stack does not
+	 * provide in this tree; disabled like the Toybrick port.  HDMI is primary. */
+	status = "disabled";
+	phys = <&tcphy0_dp>;
+};
+
+&cpu_l0 {
+	cpu-supply = <&vdd_cpu_l>;
+};
+
+&cpu_l1 {
+	cpu-supply = <&vdd_cpu_l>;
+};
+
+&cpu_l2 {
+	cpu-supply = <&vdd_cpu_l>;
+};
+
+&cpu_l3 {
+	cpu-supply = <&vdd_cpu_l>;
+};
+
+&cpu_b0 {
+	cpu-supply = <&vdd_cpu_b>;
+};
+
+&cpu_b1 {
+	cpu-supply = <&vdd_cpu_b>;
+};
+
+&display_subsystem {
+	status = "okay";
+	/delete-property/ logo-memory-region;
+};
+
+&route_hdmi {
+	status = "okay";
+	connect = <&vopb_out_hdmi>;
+};
+
+&route_dsi {
+	status = "disabled";
+};
+
+&route_edp {
+	status = "disabled";
+};
+
+&dmc {
+	status = "disabled";
+};
+
+&dp_in_vopb {
+	status = "disabled";
+};
+
+&dsi_in_vopb {
+	status = "disabled";
+};
+
+&emmc_phy {
+	status = "okay";
+};
+
+&fiq_debugger {
+	/* Kernel console on UART0 (40-pin header pins 8/10), 115200 8N1 as on the
+	 * ASUS image.  U-Boot's own console is UART2 (see docs/20-boot-flow.md). */
+	rockchip,serial-id = <0>;
+	rockchip,baudrate = <115200>;
+	rockchip,irq-mode-enable = <1>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart0_xfer>;
+	status = "okay";
+};
+
+&gmac {
+	phy-supply = <&vcc_phy>;
+	phy-mode = "rgmii";
+	clock_in_out = "input";
+	snps,reset-gpio = <&gpio3 RK_PB7 GPIO_ACTIVE_LOW>;
+	snps,reset-active-low;
+	snps,reset-delays-us = <0 16000 72000>;
+	assigned-clocks = <&cru SCLK_RMII_SRC>;
+	assigned-clock-parents = <&clkin_gmac>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&rgmii_pins>;
+	tx_delay = <0x23>;
+	rx_delay = <0x22>;
+	status = "okay";
+};
+
+&gpu {
+	status = "okay";
+	mali-supply = <&vdd_gpu>;
+	interrupt-names = "JOB", "MMU", "GPU";
+};
+
+&hdmi {
+	status = "okay";
+	#sound-dai-cells = <0>;
+	rockchip,phy-table =
+		<74250000  0x8009 0x0004 0x0272>,
+		<165000000 0x802b 0x0004 0x0209>,
+		<297000000 0x8039 0x0005 0x028d>,
+		<594000000 0x8039 0x0000 0x00f6>,
+		<000000000 0x0000 0x0000 0x0000>;
+};
+
+&hdmi_in_vopb {
+	status = "okay";
+};
+
+&hdmi_in_vopl {
+	status = "disabled";
+};
+
+&i2c0 {
+	status = "okay";
+	i2c-scl-rising-time-ns = <180>;
+	i2c-scl-falling-time-ns = <30>;
+	clock-frequency = <400000>;
+
+	rk809: pmic@20 {
+		compatible = "rockchip,rk809";
+		reg = <0x20>;
+		interrupt-parent = <&gpio1>;
+		interrupts = <RK_PC2 IRQ_TYPE_LEVEL_LOW>;
+		pinctrl-names = "default", "pmic-sleep",
+				"pmic-power-off", "pmic-reset";
+		pinctrl-0 = <&pmic_int_l>;
+		pinctrl-1 = <&soc_slppin_slp>, <&rk809_slppin_slp>;
+		pinctrl-2 = <&soc_slppin_gpio>, <&rk809_slppin_pwrdn>;
+		pinctrl-3 = <&soc_slppin_gpio>, <&rk809_slppin_null>;
+		rockchip,system-power-controller;
+		pmic-reset-func = <0>;
+		wakeup-source;
+		#clock-cells = <1>;
+		clock-output-names = "rk808-clkout1", "rk808-clkout2";
+
+		vcc1-supply = <&vcc5v0_sys>;
+		vcc2-supply = <&vcc5v0_sys>;
+		vcc3-supply = <&vcc5v0_sys>;
+		vcc4-supply = <&vcc5v0_sys>;
+		vcc5-supply = <&vcc_buck5>;
+		vcc6-supply = <&vcc_buck5>;
+		vcc7-supply = <&vcc3v3_sys>;
+		vcc8-supply = <&vcc3v3_sys>;
+		vcc9-supply = <&vcc5v0_sys>;
+
+		pwrkey {
+			status = "okay";
+		};
+
+		rtc {
+			status = "okay";
+		};
+
+		pinctrl_rk8xx: pinctrl_rk8xx {
+			gpio-controller;
+			#gpio-cells = <2>;
+
+			rk809_slppin_null: rk809_slppin_null {
+				pins = "gpio_slp";
+				function = "pin_fun0";
+			};
+
+			rk809_slppin_slp: rk809_slppin_slp {
+				pins = "gpio_slp";
+				function = "pin_fun1";
+			};
+
+			rk809_slppin_pwrdn: rk809_slppin_pwrdn {
+				pins = "gpio_slp";
+				function = "pin_fun2";
+			};
+
+			rk809_slppin_rst: rk809_slppin_rst {
+				pins = "gpio_slp";
+				function = "pin_fun3";
+			};
+		};
+
+		/* Voltages are the Tinker Edge R values from the ASUS 4.4 DTS. */
+		regulators {
+			vdd_center: DCDC_REG1 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <925000>;
+				regulator-max-microvolt = <1025000>;
+				regulator-initial-mode = <0x2>;
+				regulator-name = "vdd_center";
+				regulator-state-mem {
+					regulator-off-in-suspend;
+					regulator-suspend-microvolt = <925000>;
+				};
+			};
+
+			vdd_cpu_l: DCDC_REG2 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <925000>;
+				regulator-max-microvolt = <1225000>;
+				regulator-ramp-delay = <6001>;
+				regulator-initial-mode = <0x2>;
+				regulator-name = "vdd_cpu_l";
+				regulator-state-mem {
+					regulator-off-in-suspend;
+				};
+			};
+
+			vcc_ddr: DCDC_REG3 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-name = "vcc_ddr";
+				regulator-initial-mode = <0x2>;
+				regulator-state-mem {
+					regulator-on-in-suspend;
+				};
+			};
+
+			vcc3v3_sys: DCDC_REG4 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-initial-mode = <0x2>;
+				regulator-name = "vcc3v3_sys";
+				regulator-state-mem {
+					regulator-on-in-suspend;
+					regulator-suspend-microvolt = <3300000>;
+				};
+			};
+
+			vcc_buck5: DCDC_REG5 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-name = "vcc_buck5";
+				regulator-state-mem {
+					regulator-on-in-suspend;
+					regulator-suspend-microvolt = <3300000>;
+				};
+			};
+
+			vcca_0v9: LDO_REG1 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <925000>;
+				regulator-max-microvolt = <925000>;
+				regulator-name = "vcca_0v9";
+				regulator-state-mem {
+					regulator-on-in-suspend;
+					regulator-suspend-microvolt = <925000>;
+				};
+			};
+
+			vcc_1v8: LDO_REG2 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <1850000>;
+				regulator-max-microvolt = <1850000>;
+				regulator-name = "vcc_1v8";
+				regulator-state-mem {
+					regulator-on-in-suspend;
+					regulator-suspend-microvolt = <1850000>;
+				};
+			};
+
+			vcc0v9_soc: LDO_REG3 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <950000>;
+				regulator-max-microvolt = <950000>;
+				regulator-name = "vcc0v9_soc";
+				regulator-state-mem {
+					regulator-on-in-suspend;
+					regulator-suspend-microvolt = <950000>;
+				};
+			};
+
+			vcca_1v8: LDO_REG4 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <1850000>;
+				regulator-max-microvolt = <1850000>;
+				regulator-name = "vcca_1v8";
+				regulator-state-mem {
+					regulator-on-in-suspend;
+					regulator-suspend-microvolt = <1850000>;
+				};
+			};
+
+			vdd1v5_dvp: LDO_REG5 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <1850000>;
+				regulator-max-microvolt = <1850000>;
+				regulator-name = "vdd1v5_dvp";
+				regulator-state-mem {
+					regulator-off-in-suspend;
+				};
+			};
+
+			vcc_1v5: LDO_REG6 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <1550000>;
+				regulator-max-microvolt = <1550000>;
+				regulator-name = "vcc_1v5";
+				regulator-state-mem {
+					regulator-off-in-suspend;
+				};
+			};
+
+			vcc_3v0: LDO_REG7 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <3075000>;
+				regulator-max-microvolt = <3075000>;
+				regulator-name = "vcc_3v0";
+				regulator-state-mem {
+					regulator-off-in-suspend;
+				};
+			};
+
+			vccio_sd: LDO_REG8 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <1850000>;
+				regulator-max-microvolt = <3375000>;
+				regulator-name = "vccio_sd";
+				regulator-state-mem {
+					regulator-off-in-suspend;
+				};
+			};
+
+			vcc_sd: LDO_REG9 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <3375000>;
+				regulator-max-microvolt = <3375000>;
+				regulator-name = "vcc_sd";
+				regulator-state-mem {
+					regulator-off-in-suspend;
+				};
+			};
+
+			vcc5v0_usb: SWITCH_REG1 {
+				regulator-min-microvolt = <5000000>;
+				regulator-max-microvolt = <5000000>;
+				regulator-name = "vcc5v0_usb";
+				regulator-state-mem {
+					regulator-on-in-suspend;
+					regulator-suspend-microvolt = <5000000>;
+				};
+			};
+
+			vccio_3v3: SWITCH_REG2 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-name = "vccio_3v3";
+				regulator-state-mem {
+					regulator-on-in-suspend;
+					regulator-suspend-microvolt = <3300000>;
+				};
+			};
+		};
+
+		rk809_codec: codec {
+			#sound-dai-cells = <0>;
+			compatible = "rockchip,rk809-codec", "rockchip,rk817-codec";
+			clocks = <&cru SCLK_I2S_8CH_OUT>;
+			clock-names = "mclk";
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2s_8ch_mclk>;
+			hp-volume = <20>;
+			spk-volume = <3>;
+			status = "okay";
+		};
+	};
+
+	vdd_cpu_b: fan53555@60 {
+		compatible = "fcs,fan53555";
+		reg = <0x60>;
+		vin-supply = <&vcc5v0_sys>;
+		regulator-compatible = "fan53555-reg";
+		pinctrl-0 = <&vsel1_gpio>;
+		vsel-gpios = <&gpio1 RK_PC1 GPIO_ACTIVE_HIGH>;
+		regulator-name = "vdd_cpu_b";
+		regulator-min-microvolt = <925000>;
+		regulator-max-microvolt = <1275000>;
+		regulator-ramp-delay = <1000>;
+		fcs,suspend-voltage-selector = <1>;
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-initial-state = <3>;
+		regulator-state-mem {
+			regulator-off-in-suspend;
+		};
+	};
+};
+
+/* CSI0 connector I2C (RPi camera pins) plus the on-board IMU/compass/EEPROM. */
+&i2c1 {
+	status = "okay";
+	i2c-scl-rising-time-ns = <140>;
+	i2c-scl-falling-time-ns = <30>;
+
+	mpu6500@68 {
+		compatible = "invensense,mpu6500";
+		reg = <0x68>;
+		interrupt-parent = <&gpio3>;
+		interrupts = <RK_PD2 IRQ_TYPE_EDGE_RISING>;
+		mount-matrix = "0", "1", "0",
+			       "1", "0", "0",
+			       "0", "0", "1";
+	};
+
+	ak8963@d {
+		compatible = "asahi-kasei,ak8963";
+		reg = <0x0d>;
+		interrupt-parent = <&gpio3>;
+		interrupts = <RK_PD7 IRQ_TYPE_EDGE_RISING>;
+	};
+
+	eeprom@50 {
+		compatible = "atmel,24c08";
+		reg = <0x50>;
+		pagesize = <16>;
+	};
+
+	/*
+	 * Geekworm X1301 (TC358743XBG) on CSI0, 2 data lanes.  297 MHz link
+	 * frequency = 594 Mbps/lane: 1080p30 / 720p60 4:2:2 like the Raspberry
+	 * Pi tc358743 overlay.  Probe fails harmlessly when nothing is attached.
+	 */
+	hdmirx_csi0: tc358743@f {
+		compatible = "toshiba,tc358743";
+		reg = <0x0f>;
+		clocks = <&tc358743_refclk>;
+		clock-names = "refclk";
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "X1301-HDMI-RX";
+		rockchip,camera-module-lens-name = "none";
+		status = "okay";
+
+		port {
+			hdmirx_csi0_out: endpoint {
+				remote-endpoint = <&mipi_in_ucam0>;
+				data-lanes = <1 2>;
+				clock-lanes = <0>;
+				clock-noncontinuous;
+				link-frequencies = /bits/ 64 <297000000>;
+			};
+		};
+	};
+};
+
+/* CSI1 connector I2C (RPi camera pins). */
+&i2c2 {
+	status = "okay";
+	i2c-scl-rising-time-ns = <140>;
+	i2c-scl-falling-time-ns = <30>;
+
+	/* Same X1301 bridge on CSI1; enabled by the -hdmirx-csi1 DTB variant. */
+	hdmirx_csi1: tc358743@f {
+		compatible = "toshiba,tc358743";
+		reg = <0x0f>;
+		clocks = <&tc358743_refclk>;
+		clock-names = "refclk";
+		rockchip,camera-module-index = <1>;
+		rockchip,camera-module-facing = "front";
+		rockchip,camera-module-name = "X1301-HDMI-RX";
+		rockchip,camera-module-lens-name = "none";
+		status = "disabled";
+
+		port {
+			hdmirx_csi1_out: endpoint {
+				remote-endpoint = <&mipi_in_ucam1>;
+				data-lanes = <1 2>;
+				clock-lanes = <0>;
+				clock-noncontinuous;
+				link-frequencies = /bits/ 64 <297000000>;
+			};
+		};
+	};
+};
+
+/* MIPI DSI connector I2C (ASUS display accessories; no devices described). */
+&i2c4 {
+	status = "okay";
+	i2c-scl-rising-time-ns = <345>;
+	i2c-scl-falling-time-ns = <11>;
+};
+
+/* 40-pin header I2C6 (pins 3/5) and I2C7 (pins 27/28). */
+&i2c6 {
+	status = "okay";
+};
+
+&i2c7 {
+	status = "okay";
+};
+
+&i2c8 {
+	status = "okay";
+	i2c-scl-rising-time-ns = <345>;
+	i2c-scl-falling-time-ns = <11>;
+	clock-frequency = <100000>;
+
+	fusb0: usb-typec@22 {
+		compatible = "fcs,fusb302";
+		reg = <0x22>;
+		interrupt-parent = <&gpio1>;
+		interrupts = <RK_PA2 IRQ_TYPE_LEVEL_LOW>;
+		/* This tree's fusb302 driver takes the IRQ line as "int-n" gpio. */
+		int-n-gpios = <&gpio1 RK_PA2 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&fusb0_int>;
+		vbus-supply = <&vbus_typec>;
+		status = "okay";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				usbc0_role_sw: endpoint@0 {
+					remote-endpoint = <&dwc3_0_role_switch>;
+				};
+			};
+		};
+
+		usb_con: connector {
+			compatible = "usb-c-connector";
+			label = "USB-C";
+			data-role = "dual";
+			power-role = "dual";
+			try-power-role = "sink";
+			/* Board is DC-jack powered: sink only what a USB host offers. */
+			op-sink-microwatt = <1000000>;
+			sink-pdos =
+				<PDO_FIXED(5000, 500, PDO_FIXED_USB_COMM)>;
+			source-pdos =
+				<PDO_FIXED(5000, 1500, PDO_FIXED_USB_COMM)>;
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				port@0 {
+					reg = <0>;
+					usbc0_orien_sw: endpoint {
+						remote-endpoint = <&tcphy0_orientation_switch>;
+					};
+				};
+			};
+		};
+	};
+
+	vdd_gpu: fan53555@60 {
+		compatible = "fcs,fan53555";
+		reg = <0x60>;
+		vin-supply = <&vcc5v0_sys>;
+		regulator-compatible = "fan53555-reg";
+		pinctrl-0 = <&vsel2_gpio>;
+		vsel-gpios = <&gpio1 RK_PB6 GPIO_ACTIVE_HIGH>;
+		regulator-name = "vdd_gpu";
+		regulator-min-microvolt = <925000>;
+		regulator-max-microvolt = <1225000>;
+		regulator-ramp-delay = <1000>;
+		fcs,suspend-voltage-selector = <1>;
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-initial-state = <3>;
+		regulator-state-mem {
+			regulator-off-in-suspend;
+		};
+	};
+};
+
+&i2s1 {
+	status = "okay";
+	#sound-dai-cells = <0>;
+};
+
+&i2s2 {
+	status = "okay";
+	dmas = <&dmac_bus 4>;
+	dma-names = "tx";
+	#sound-dai-cells = <0>;
+};
+
+&io_domains {
+	status = "okay";
+	bt656-supply = <&vcca_1v8>;	/* APIO2_VDD */
+	audio-supply = <&vcca_1v8>;	/* APIO5_VDD */
+	sdmmc-supply = <&vccio_sd>;	/* SDMMC0_VDD */
+	gpio1830-supply = <&vcc_3v0>;	/* APIO4_VDD */
+};
+
+&pmu_io_domains {
+	status = "okay";
+	pmu1830-supply = <&vcc_1v8>;
+};
+
+/* ---- camera / HDMI-RX capture path: vendor rkisp1 driver ------------------- */
+
+&isp0 {
+	status = "disabled";
+};
+
+&isp1 {
+	status = "disabled";
+};
+
+&isp0_mmu {
+	status = "okay";
+};
+
+&isp1_mmu {
+	status = "okay";
+};
+
+&mipi_dphy_rx0 {
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			mipi_in_ucam0: endpoint@1 {
+				reg = <1>;
+				remote-endpoint = <&hdmirx_csi0_out>;
+				data-lanes = <1 2>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			dphy_rx0_out: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&isp0_mipi_in>;
+			};
+		};
+	};
+};
+
+&mipi_dphy_tx1rx1 {
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			mipi_in_ucam1: endpoint@1 {
+				reg = <1>;
+				remote-endpoint = <&hdmirx_csi1_out>;
+				data-lanes = <1 2>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			dphy_tx1rx1_out: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&isp1_mipi_in>;
+			};
+		};
+	};
+};
+
+&rkisp1_0 {
+	status = "okay";
+
+	port {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		isp0_mipi_in: endpoint@0 {
+			reg = <0>;
+			remote-endpoint = <&dphy_rx0_out>;
+		};
+	};
+};
+
+&rkisp1_1 {
+	status = "okay";
+
+	port {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		isp1_mipi_in: endpoint@0 {
+			reg = <0>;
+			remote-endpoint = <&dphy_tx1rx1_out>;
+		};
+	};
+};
+
+/* ---- PCIe x1 -> M.2 Key-E (Wi-Fi) -------------------------------------------- */
+
+&pcie_phy {
+	status = "okay";
+};
+
+&pcie0 {
+	/* ep-gpios / pinctrl come from rk3399pro.dtsi (GPIO0_B4 = PERST#). */
+	vpcie3v3-supply = <&vcc_wifi>;
+	status = "okay";
+};
+
+&pwm2 {
+	/* VDD_LOG PWM, left in the state programmed by U-Boot. */
+	status = "okay";
+};
+
+&rockchip_suspend {
+	status = "okay";
+	rockchip,sleep-debug-en = <1>;
+	rockchip,sleep-mode-config = <
+		(0
+		| RKPM_SLP_ARMPD
+		| RKPM_SLP_PERILPPD
+		| RKPM_SLP_DDR_RET
+		| RKPM_SLP_PLLPD
+		| RKPM_SLP_CENTER_PD
+		| RKPM_SLP_AP_PWROFF
+		)
+	>;
+	rockchip,wakeup-config = <
+		(0
+		| RKPM_GPIO_WKUP_EN
+		| RKPM_USB_WKUP_EN
+		| RKPM_USB_LINESTATE_WKUP_EN
+		)
+	>;
+	rockchip,pwm-regulator-config = <PWM2_REGULATOR_EN>;
+	rockchip,power-ctrl =
+		<&gpio1 RK_PC1 GPIO_ACTIVE_HIGH>,
+		<&gpio1 RK_PB6 GPIO_ACTIVE_HIGH>;
+};
+
+&saradc {
+	status = "okay";
+	vref-supply = <&vcc_1v8>;
+};
+
+&sdhci {
+	mmc-pwrseq = <&sdhci_pwrseq>;
+};
+
+&sdio0 {
+	status = "disabled";
+};
+
+&sdmmc {
+	sd-uhs-sdr12;
+	sd-uhs-sdr25;
+	sd-uhs-sdr50;
+	sd-uhs-sdr104;
+};
+
+&tcphy0 {
+	status = "okay";
+	orientation-switch;
+
+	port {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		tcphy0_orientation_switch: endpoint@0 {
+			reg = <0>;
+			remote-endpoint = <&usbc0_orien_sw>;
+		};
+	};
+};
+
+&tcphy1 {
+	status = "okay";
+};
+
+&tsadc {
+	rockchip,hw-tshut-mode = <1>; /* tshut mode 0:CRU 1:GPIO */
+	rockchip,hw-tshut-polarity = <1>; /* tshut polarity 0:LOW 1:HIGH */
+	status = "okay";
+};
+
+&u2phy0 {
+	status = "okay";
+
+	u2phy0_otg: otg-port {
+		status = "okay";
+	};
+
+	u2phy0_host: host-port {
+		phy-supply = <&vcc5v0_usb>;
+		status = "okay";
+	};
+};
+
+&u2phy1 {
+	status = "okay";
+
+	u2phy1_otg: otg-port {
+		status = "okay";
+	};
+
+	u2phy1_host: host-port {
+		phy-supply = <&vcc5v0_usb>;
+		status = "okay";
+	};
+};
+
+/* UART0 pins belong to the fiq debugger console; UART4 shares pins with SPI1. */
+&uart0 {
+	status = "disabled";
+};
+
+&uart4 {
+	status = "disabled";
+};
+
+&usb_host0_ehci {
+	status = "okay";
+};
+
+&usb_host0_ohci {
+	status = "okay";
+};
+
+&usb_host1_ehci {
+	status = "okay";
+};
+
+&usb_host1_ohci {
+	status = "okay";
+};
+
+/* Type-C: dual role, role switching driven by the FUSB302 TCPM port. */
+&usbdrd3_0 {
+	extcon = <&u2phy0>;
+	status = "okay";
+};
+
+&usbdrd_dwc3_0 {
+	dr_mode = "otg";
+	usb-role-switch;
+	snps,dis-u3-autosuspend-quirk;
+	status = "okay";
+
+	port {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		dwc3_0_role_switch: endpoint@0 {
+			reg = <0>;
+			remote-endpoint = <&usbc0_role_sw>;
+		};
+	};
+};
+
+/* USB 3.0 host: GL3523 hub (Type-A ports) and the NPU's USB links. */
+&usbdrd3_1 {
+	status = "okay";
+};
+
+&usbdrd_dwc3_1 {
+	dr_mode = "host";
+	snps,dis-u3-autosuspend-quirk;
+	status = "okay";
+};
+
+&vopb {
+	status = "okay";
+};
+
+&vopb_mmu {
+	status = "okay";
+};
+
+&vopl {
+	status = "okay";
+};
+
+&vopl_mmu {
+	status = "okay";
+};
+
+&pinctrl {
+	pinctrl-names = "default";
+	pinctrl-0 = <&npu_ref_clk &gpio_init>;
+
+	/* ASUS: park the (unused) DSI bridge control pins as plain GPIOs. */
+	gpio_init_config {
+		gpio_init: gpio_init {
+			rockchip,pins =
+				<1 RK_PB1 RK_FUNC_GPIO &pcfg_pull_none>,
+				<1 RK_PB2 RK_FUNC_GPIO &pcfg_pull_none>,
+				<1 RK_PA7 RK_FUNC_GPIO &pcfg_pull_none>,
+				<1 RK_PB0 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	bt {
+		bt_enable_h: bt-enable-h {
+			rockchip,pins = <2 RK_PD4 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	csi {
+		csi0_pwr_en: csi0-pwr-en {
+			rockchip,pins = <0 RK_PB0 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	fusb30x {
+		fusb0_int: fusb0-int {
+			rockchip,pins = <1 RK_PA2 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+
+	headphone {
+		hp_det: hp-det {
+			rockchip,pins = <0 RK_PB5 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+
+	npu_clk {
+		npu_ref_clk: npu-ref-clk {
+			rockchip,pins = <0 RK_PA2 1 &pcfg_pull_none>;
+		};
+	};
+
+	pmic {
+		pmic_int_l: pmic-int-l {
+			rockchip,pins = <1 RK_PC2 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+
+		vsel1_gpio: vsel1-gpio {
+			rockchip,pins = <1 RK_PC1 RK_FUNC_GPIO &pcfg_pull_down>;
+		};
+
+		vsel2_gpio: vsel2-gpio {
+			rockchip,pins = <1 RK_PB6 RK_FUNC_GPIO &pcfg_pull_down>;
+		};
+
+		soc_slppin_gpio: soc-slppin-gpio {
+			rockchip,pins = <1 RK_PA5 RK_FUNC_GPIO &pcfg_output_low>;
+		};
+
+		soc_slppin_slp: soc-slppin-slp {
+			rockchip,pins = <1 RK_PA5 1 &pcfg_pull_down>;
+		};
+
+		soc_slppin_rst: soc-slppin-rst {
+			rockchip,pins = <1 RK_PA5 2 &pcfg_pull_none>;
+		};
+	};
+
+	sdhci-pwrseq {
+		sdhci_reset: sdhci-reset {
+			rockchip,pins = <2 RK_PA4 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	/* ASUS raises the microSD pad drive strength to 10 mA. */
+	sdmmc {
+		sdmmc_bus1: sdmmc-bus1 {
+			rockchip,pins = <4 RK_PB0 1 &pcfg_pull_up_10ma>;
+		};
+
+		sdmmc_bus4: sdmmc-bus4 {
+			rockchip,pins =
+				<4 RK_PB0 1 &pcfg_pull_up_10ma>,
+				<4 RK_PB1 1 &pcfg_pull_up_10ma>,
+				<4 RK_PB2 1 &pcfg_pull_up_10ma>,
+				<4 RK_PB3 1 &pcfg_pull_up_10ma>;
+		};
+
+		sdmmc_clk: sdmmc-clk {
+			rockchip,pins = <4 RK_PB4 1 &pcfg_pull_none_10ma>;
+		};
+
+		sdmmc_cmd: sdmmc-cmd {
+			rockchip,pins = <4 RK_PB5 1 &pcfg_pull_up_10ma>;
+		};
+	};
+
+	usb-typec {
+		vcc5v0_typec0_en: vcc5v0-typec0-en {
+			rockchip,pins = <4 RK_PD1 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	wifi {
+		wifi_enable_h: wifi-enable-h {
+			rockchip,pins = <2 RK_PD3 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+};

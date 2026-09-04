@@ -1,0 +1,45 @@
+From be4c4ee5fe23b8d60afcea05175ded4bf5cb5603 Mon Sep 17 00:00:00 2001
+From: Frank Chang <frank.aka.hao.hao@gmail.com>
+Date: Fri, 4 Sep 2026 14:46:48 +0000
+Subject: [PATCH] kbuild: fix U-Boot dtsi #include with GNU make 4.3
+
+GNU make 4.3 no longer strips the backslash from '\#' inside a function
+call, so cmd_dtc appended a literal '\#include "<board>-u-boot.dtsi"' line to
+every preprocessed DTS and dtc failed with 'syntax error' for boards that have
+a *-u-boot.dtsi.  Use the $(pound) idiom from Linux' Kbuild.include instead.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01X5fyDxjKiUyt54CF2bPs4s
+---
+ scripts/Kbuild.include | 1 +
+ scripts/Makefile.lib   | 2 +-
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/scripts/Kbuild.include b/scripts/Kbuild.include
+index 2c7918a..acb21f5 100644
+--- a/scripts/Kbuild.include
++++ b/scripts/Kbuild.include
+@@ -3,6 +3,7 @@
+ 
+ # Convenient variables
+ comma   := ,
++pound   := \#
+ quote   := "
+ squote  := '
+ empty   :=
+diff --git a/scripts/Makefile.lib b/scripts/Makefile.lib
+index 12d1123..a384b41 100644
+--- a/scripts/Makefile.lib
++++ b/scripts/Makefile.lib
+@@ -308,7 +308,7 @@ quiet_cmd_dtc = DTC     $@
+ # Modified for U-Boot
+ # Bring in any U-Boot-specific include at the end of the file
+ cmd_dtc = mkdir -p $(dir ${dtc-tmp}) ; \
+-	(cat $<; $(if $(u_boot_dtsi),echo '\#include "$(u_boot_dtsi)"')) > $(pre-tmp); \
++	(cat $<; $(if $(u_boot_dtsi),echo '$(pound)include "$(u_boot_dtsi)"')) > $(pre-tmp); \
+ 	$(CPP) $(dtc_cpp_flags) -x assembler-with-cpp -o $(dtc-tmp) $(pre-tmp) ; \
+ 	$(DTC) -O dtb -o $@ -b 0 \
+ 		-i $(dir $<) $(DTC_FLAGS) \
+-- 
+2.43.0
+
