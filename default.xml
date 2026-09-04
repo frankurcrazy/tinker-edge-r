@@ -42,7 +42,7 @@
   <project name="airockchip/RK3399Pro_npu"
            path="src/npu"
            revision="8858114555f1700e41e185b14ec3d266342f8059"
-           upstream="master"
+           upstream="main"
            clone-depth="1" />
 
   <!-- Root filesystem builder (debootstrap + overlays + NPU/gadget/HDMI-RX integration). -->
