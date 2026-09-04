@@ -54,7 +54,7 @@ run_in_container() {
     for v in $(grep -oE '^[A-Z_]+=' "$CONFIGS/board.env" | tr -d '=' | sort -u); do
         if [ -n "${!v+x}" ]; then args+=(-e "$v=${!v}"); fi
     done
-    log "container: stage $stage ${privileged:+(privileged)}"
+    log "container: stage $stage$( [ "$privileged" = 1 ] && echo ' (privileged, root)' )"
     docker "${args[@]}" "$BUILDER_IMAGE" "$script" "$@"
 }
 

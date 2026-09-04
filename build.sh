@@ -7,7 +7,8 @@
 #   ./build.sh kernel      build the 6.1 kernel, DTBs and modules
 #   ./build.sh rootfs      debootstrap the Ubuntu 22.04 rootfs (privileged container)
 #   ./build.sh image       assemble the GPT disk image (privileged container)
-#   ./build.sh all         uboot + kernel + rootfs + image
+#   ./build.sh verify      static checks on the newest image (GPT, extlinux, DTB, rootfs)
+#   ./build.sh all         uboot + kernel + rootfs + image + verify
 #   ./build.sh shell       interactive shell inside the builder container
 #   ./build.sh clean       remove out/
 #
@@ -48,7 +49,7 @@ cmd="${1:-help}"
 case "$cmd" in
     builder) build_builder_image ;;
     fetch)   do_fetch "$@" ;;
-    uboot|kernel)
+    uboot|kernel|verify)
         ensure_builder_image
         run_in_container "$cmd" "$@" ;;
     rootfs|image)
@@ -59,7 +60,8 @@ case "$cmd" in
         run_in_container uboot
         run_in_container kernel
         run_in_container --privileged rootfs
-        run_in_container --privileged image ;;
+        run_in_container --privileged image
+        run_in_container verify ;;
     shell)
         ensure_builder_image
         run_in_container ${PRIVILEGED:+--privileged} shell "$@" ;;
