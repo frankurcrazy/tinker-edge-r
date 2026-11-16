@@ -98,7 +98,10 @@ else
     ROOT_MB=$(( (min_mb + IMG_ROOTFS_MARGIN_MB + 3) / 4 * 4 ))
     truncate -s "${ROOT_MB}M" "$WORK/rootfs.img"
     resize2fs "$WORK/rootfs.img" >/dev/null 2>&1 || die "resize2fs to ${ROOT_MB} MiB failed"
-    log "rootfs: ${apparent_mb} MiB of files, ${min_mb} MiB as ext4, ${IMG_ROOTFS_MARGIN_MB} MiB margin"
+    # resize2fs -M's minimum is an estimate with slack (flex_bg metadata), so
+    # the free space ends up above the margin; log what it really is.
+    free_blocks="$(dumpe2fs -h "$WORK/rootfs.img" 2>/dev/null | awk -F: '/^Free blocks/ {print $2 + 0}')"
+    log "rootfs: ${apparent_mb} MiB of files, resize2fs minimum ${min_mb} MiB + ${IMG_ROOTFS_MARGIN_MB} MiB margin: $(( free_blocks * bsize / 1048576 )) MiB free"
 fi
 log "boot partition ${BOOT_MB} MiB, rootfs partition ${ROOT_MB} MiB"
 e2fsck -fn "$WORK/boot.img" >/dev/null || die "boot.img failed fsck"
