@@ -93,10 +93,13 @@ check 'rfls /usr/share/npu_fw | grep -q boot.img' "NPU firmware set in /usr/shar
 for f in /usr/bin/npu_transfer_proxy /usr/bin/upgrade_tool /usr/bin/npu_powerctrl /usr/bin/npu_upgrade /usr/lib/aarch64-linux-gnu/librknn_api.so /usr/include/rknn_api.h /usr/local/sbin/npu-firmware-load /usr/local/sbin/usb-gadget-setup /usr/local/sbin/hdmirx-setup /usr/local/sbin/tinker-first-boot /usr/share/hdmirx/edid-1080p30.bin /etc/default/usb-gadget /etc/systemd/network/20-usb-gadget.network; do
     check 'rfexists $f' "$f"
 done
-for u in npu-firmware.service npu-transfer-proxy.service usb-gadget.service ssh.service systemd-networkd.service; do
+for u in npu-firmware.service npu-transfer-proxy.service tinker-first-boot.service tinker-eth-mac.service ssh.service systemd-networkd.service; do
     check 'rfls /etc/systemd/system/multi-user.target.wants | grep -qx $u' "enabled: $u"
 done
-check 'rfls /etc/systemd/system/sysinit.target.wants | grep -qx tinker-first-boot.service' "enabled: tinker-first-boot.service"
+# usb-gadget.service is started by udev when the UDC appears, not enabled
+check 'rfls /etc/udev/rules.d | grep -qx 81-usb-gadget-udc.rules' "udev starts usb-gadget.service (81-usb-gadget-udc.rules)"
+check '! rfls /etc/systemd/system/multi-user.target.wants | grep -qx usb-gadget.service' "usb-gadget.service not enabled at boot"
+check '! rf /etc/default/usb-gadget | grep -q "^GADGET_UDC=\"fe800000.dwc3\""' "gadget not pinned to 4.4's UDC name"
 check 'rfls /usr/local/lib/python3.10/dist-packages | grep -q rknnlite' "rknn_toolkit_lite installed for python3.10"
 check '[ "$(dbg "stat /usr/local/sbin/usb-gadget-setup" "$W/rootfs.img" | sed -n "s/.*User: *\([0-9]*\).*/\1/p" | head -1)" = 0 ]' "overlay files are root-owned"
 check '[ -z "$(rf /etc/machine-id)" ]' "machine-id empty (regenerated on first boot)"
