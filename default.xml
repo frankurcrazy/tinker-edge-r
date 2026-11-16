@@ -17,10 +17,11 @@
   <default remote="github" sync-j="4" sync-c="true" />
 
   <!-- Linux 6.1 Rockchip vendor kernel: Toybrick RK3399ProD base + Tinker Edge R port
-       (branch tinker-edge-r = develop-6.1-rt45 + rk3399pro-tinker-edge-r DTS + fragments). -->
+       (branch tinker-edge-r = develop-6.1-rt45 + rk3399pro-tinker-edge-r DTS + the fixes
+       from booting it: bootargs, X1301/IMU opt-in, ramoops, FAN53555, PHY LEDs). -->
   <project name="frankurcrazy/TB-RK3399ProD-Kernel-6.1"
            path="src/kernel"
-           revision="5aafcc61c1086a3cd29a1053a71c3149edb8ec21"
+           revision="776b11eef15e4b1fc40cfc82a03e27444de0f98f"
            upstream="tinker-edge-r"
            clone-depth="1" />
 
@@ -50,7 +51,7 @@
   <!-- Root filesystem builder (debootstrap + overlays + NPU/gadget/HDMI-RX integration). -->
   <project name="frankurcrazy/tinker-edge-r-rootfs"
            path="src/rootfs"
-           revision="3aef28b68fcaaae9be3b003b44b48eb6c5dd2f71"
+           revision="5083edf1d609a5f30c20687ac0c1ce69422005ef"
            upstream="main" />
 
   <!-- Optional: ASUS's original 4.4 kernel, only synced with `repo init -g legacy` (reference / fallback). -->
