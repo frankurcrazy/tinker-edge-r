@@ -1,0 +1,41 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Frank Chang <frank.aka.hao.hao@gmail.com>
+Date: Mon, 16 Nov 2026 12:57:45 +0000
+Subject: [PATCH] arm64: dts: rockchip: tinker-edge-r: drop the rk809 card's
+ DAPM routes
+
+This tree's rk817 codec driver registers no DAPM widgets, so the four
+routes copied from ASUS's DTS (Mic Jack <- MICBIAS1, IN1P <- Mic Jack,
+Headphone Jack <- HPOL/HPOR) could never be added: each boot logged
+"ASoC: no source/sink widget found" and "Failed to add route" for all of
+them.  Drop the routes and the card widgets they served; audio paths are
+set through the codec's own controls either way.
+---
+ .../boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi | 14 ++++++--------
+ 1 file changed, 6 insertions(+), 8 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi b/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi
+index addeaa61f..73aab9014 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi
+@@ -177,14 +177,12 @@ rk809-sound {
+ 		simple-audio-card,format = "i2s";
+ 		simple-audio-card,name = "rockchip,rk809";
+ 		simple-audio-card,mclk-fs = <256>;
+-		simple-audio-card,widgets =
+-			"Microphone", "Mic Jack",
+-			"Headphone", "Headphone Jack";
+-		simple-audio-card,routing =
+-			"Mic Jack", "MICBIAS1",
+-			"IN1P", "Mic Jack",
+-			"Headphone Jack", "HPOL",
+-			"Headphone Jack", "HPOR";
++		/*
++		 * No widgets/routing: this tree's rk817 codec driver has no DAPM
++		 * widgets (it switches paths through its own controls), so the
++		 * MICBIAS1/IN1P/HPOL/HPOR routes ASUS's DTS carries could never be
++		 * added and only logged errors at every boot.
++		 */
+ 
+ 		simple-audio-card,cpu {
+ 			sound-dai = <&i2s1>;

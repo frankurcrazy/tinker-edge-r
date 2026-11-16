@@ -177,14 +177,12 @@
 		simple-audio-card,format = "i2s";
 		simple-audio-card,name = "rockchip,rk809";
 		simple-audio-card,mclk-fs = <256>;
-		simple-audio-card,widgets =
-			"Microphone", "Mic Jack",
-			"Headphone", "Headphone Jack";
-		simple-audio-card,routing =
-			"Mic Jack", "MICBIAS1",
-			"IN1P", "Mic Jack",
-			"Headphone Jack", "HPOL",
-			"Headphone Jack", "HPOR";
+		/*
+		 * No widgets/routing: this tree's rk817 codec driver has no DAPM
+		 * widgets (it switches paths through its own controls), so the
+		 * MICBIAS1/IN1P/HPOL/HPOR routes ASUS's DTS carries could never be
+		 * added and only logged errors at every boot.
+		 */
 
 		simple-audio-card,cpu {
 			sound-dai = <&i2s1>;
