@@ -74,10 +74,10 @@ build_builder_image() {
 stage_banner() { log "==== $* ===="; }
 
 # Verify every "CONFIG_X=y|m" and "# CONFIG_X is not set" line of the given
-# fragment files against .config.  "=m" must stay a module: the Wi-Fi/Bluetooth
-# stack is a module on purpose (built in, it probes before the root filesystem
-# is mounted and never finds its firmware), and something that selects it built
-# in must fail the build, not slip through.
+# fragment files against .config.  "=m" must stay a module: the Wi-Fi stack and
+# the Bluetooth USB drivers are modules on purpose (built in, they probe before
+# the root filesystem is mounted and never find their firmware), and something
+# that selects them built in must fail the build, not slip through.
 check_config_fragments() {
     local config="$1"; shift
     local frag opt want missing=0

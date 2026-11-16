@@ -66,8 +66,9 @@ systemctl restart usb-gadget            # after editing /etc/default/usb-gadget
 
 The script derives stable MAC addresses and the USB serial number from the SoC serial:
 `/proc/device-tree/serial-number` under ASUS's 4.4 image; here `/proc/cpuinfo`'s `Serial`
-(the kernel's `cpuinfo` node derives it from the eFuse CPU ID the same way ASUS's U-Boot
-does, so it matches the stock serial).  It sets `bcdUSB 0x0320` so SuperSpeed
+(the kernel's `cpuinfo` node derives it from the eFuse CPU ID the way ASUS's U-Boot
+derives `serial#`; it matched the stock serial on the board checked, which has no
+serial in vendor storage).  It sets `bcdUSB 0x0320` so SuperSpeed
 descriptors are offered, and binds to the first UDC (`GADGET_UDC` empty): the Type-C
 dwc3, `fe800000.usb` under this kernel.  ASUS's 4.4 kernel named it `fe800000.dwc3`, and
 the first images pinned that name, so the gadget never bound.

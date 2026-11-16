@@ -34,7 +34,7 @@ microSD through the eMMC's loader and U-Boot:
 * Ethernet at 1 Gbit/s with the stock LED registers (LCR `0x8910`, EEELCR `0`) and the
   EEPROM's MAC address, set before networkd starts
 * USB gadget (NCM + ACM) bound to `fe800000.usb` once udev sees the UDC; `/proc/cpuinfo`
-  `Serial` is the stock serial number (`usb-gadget-setup` uses it for the USB serial and
+  `Serial` matches the stock serial number on this board (`usb-gadget-setup` uses it for the USB serial and
   the `usb0` MACs); analog audio card `rockchip,rk809` registers
 * DVFS: `vdd_cpu_b`/`vdd_gpu` (FAN53555) probe; the big cluster runs 408 MHz-1.8 GHz
   at the stock OPP voltages, the little one up to 1.416 GHz; GPU devfreq; ramoops

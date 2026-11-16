@@ -24,7 +24,7 @@ the board turned up (2026-11-16):
 | make the X1301 HDMI bridge opt-in | without the board, `tc35874x` bound anyway (its chip-ID check accepts 0x0000) and its 1 s status poll flooded I2C1 |
 | make the IMU and compass opt-in | nothing answers at I2C1 0x68 / 0x0d, under stock 4.4 or 6.1; the compass driver logged errors at every boot |
 | drop the rk809 card's DAPM routes | this tree's rk817 codec has no DAPM widgets; adding the routes failed with -ENODEV and tore the whole card down, so there was no analog audio card at all |
-| add the `cpuinfo` node | `/proc/cpuinfo` `Serial` from the eFuse CPU ID, the same value as the stock serial number |
+| add the `cpuinfo` node | `/proc/cpuinfo` `Serial` from the eFuse CPU ID, derived as ASUS's U-Boot derives `serial#` (the same value on the board checked; U-Boot prefers a serial from vendor storage when one is programmed) |
 | describe ramoops in `/reserved-memory` | 6.1's ramoops needs a `ramoops` node with 32-bit sizes; pstore now works |
 | `regulator: fan53555`: option 00, revision 12 | the board's FAN53555s (`vdd_cpu_b`, `vdd_gpu`) report a revision the driver did not know, so both failed to probe and cpufreq gave up on both clusters; ASUS's 4.4 driver maps it to 600 mV + 12.5 mV steps, as this commit does.  Measured: 1.8 GHz at 1.200 V, 1.416 GHz at 1.025 V (the stock OPP table) |
 | `net: phy: realtek`: LED registers from the DT, and the restored stock Ethernet LED setup | see the Ethernet row below |
@@ -42,7 +42,8 @@ The kernel is built with `rockchip_linux_defconfig` (the Toybrick maintainer's c
 | `media-hdmi-rx.config` | vendor rkisp1 + MIPI D-PHY RX + vendor `tc35874x` bridge driver (TC358743/TC358749), RPi camera sensors as modules, CEC |
 
 `scripts/stage-kernel.sh` merges them with `merge_config.sh`, runs `olddefconfig` and
-fails if any `=y`/`=m` line of a fragment is missing from the result.
+fails if a fragment's `=y` or `=m` line does not come out exactly so (a requested
+module that ends up built in fails too) or a `# ... is not set` option is enabled.
 
 ## Method
 
