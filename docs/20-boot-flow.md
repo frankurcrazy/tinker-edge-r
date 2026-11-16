@@ -99,9 +99,12 @@ the command lines) in `/boot/extlinux/extlinux.conf` on the device.
 `tinker-first-boot.service` grows the root partition to the size of the medium
 (`growpart` + `resize2fs`), regenerates SSH host keys and `/etc/machine-id`, and
 writes its stamp.  The kernel mounts the root as `/dev/root` without an initramfs, so
-the script finds the partition through the root mount's major:minor; it keeps
-`growpart`'s temporary files on `/run` (the image's root filesystem has little free
-space until it is grown) and tries again at the next boot if growing failed.
+the script finds the partition through the root mount's major:minor, and it tries again
+at the next boot if growing failed.  It is an ordinary service, started after udev and
+the local mounts and before `ssh.service`.  `growpart` runs `udevadm settle`: while the
+unit was ordered before `systemd-sysusers.service` (which udevd waits for), the settle
+sat out its 120 s timeout, `/boot`'s device job timed out first, and the first boot
+ended in emergency mode.
 `tinker-eth-mac.service` gives `eth0` the board's MAC address from the EEPROM before
 networkd starts (see [95-board-notes.md](95-board-notes.md)).
 `npu-firmware.service` then loads the NPU (about 10-20 s).

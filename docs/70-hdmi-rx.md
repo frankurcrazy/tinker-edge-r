@@ -24,7 +24,8 @@ The Tinker Edge R has two such 15-pin connectors:
   2 data lanes, `link-frequencies = 297000000` (594 Mbit/s per lane, the Raspberry Pi
   overlay value) into `mipi_dphy_rx0` port 0, then `rkisp1_0`.  The X1301 is optional,
   so the default DTB leaves both bridge nodes **disabled**: without the board, the
-  `tc35874x` driver retried its I2C probe forever and flooded I2C1.  With the board
+  `tc35874x` driver bound anyway (its chip-ID check accepts 0x0000) and its 1 s status
+  poll flooded I2C1 with failed transfers.  With the board
   attached, boot the matching extlinux entry: `hdmirx-csi0`
   (`rk3399pro-tinker-edge-r-hdmirx-csi0.dtb`) or `hdmirx-csi1`
   (`rk3399pro-tinker-edge-r-hdmirx-csi1.dtb`), by setting `default` in

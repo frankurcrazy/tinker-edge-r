@@ -35,8 +35,8 @@ Inspect at runtime:
 ```sh
 ls /sys/class/typec/                          # port0, port0-partner when attached
 cat /sys/class/typec/port0/{data_role,power_role,orientation}
-cat /sys/class/udc/fe800000.dwc3/state        # not attached / configured
-cat /sys/kernel/debug/usb/fe800000.dwc3/mode  # host / device
+cat /sys/class/udc/fe800000.usb/state         # not attached / configured
+cat /sys/kernel/debug/usb/fe800000.usb/mode   # host / device
 dmesg | grep -iE 'fusb302|tcpm|dwc3|typec'
 ```
 
@@ -64,11 +64,17 @@ usb-gadget-setup status | stop | start | restart
 systemctl restart usb-gadget            # after editing /etc/default/usb-gadget
 ```
 
-The script derives stable MAC addresses and the serial number from the SoC serial
-(`/proc/device-tree/serial-number`), sets `bcdUSB 0x0320` so SuperSpeed descriptors are
-offered, and binds to `fe800000.dwc3`.  It waits up to 30 s for that UDC: the dwc3 role
-switch registers it only once TCPM has probed, which can be after the service starts
-(on the first boots the service failed with no UDC to bind to).
+The script derives stable MAC addresses and the USB serial number from the SoC serial:
+`/proc/device-tree/serial-number` under ASUS's 4.4 image; here `/proc/cpuinfo`'s `Serial`
+(the kernel's `cpuinfo` node derives it from the eFuse CPU ID the same way ASUS's U-Boot
+does, so it matches the stock serial).  It sets `bcdUSB 0x0320` so SuperSpeed
+descriptors are offered, and binds to the first UDC (`GADGET_UDC` empty): the Type-C
+dwc3, `fe800000.usb` under this kernel.  ASUS's 4.4 kernel named it `fe800000.dwc3`, and
+the first images pinned that name, so the gadget never bound.
+
+`usb-gadget.service` is not enabled: `/etc/udev/rules.d/81-usb-gadget-udc.rules` starts
+it when the dwc3 role switch registers the UDC, however late that is, and nothing else
+waits for it (`usb0` is configured by networkd whenever it appears).
 
 ### Using a legacy gadget instead
 

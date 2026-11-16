@@ -20,8 +20,11 @@ the board turned up (2026-11-16):
 
 | commit | fixes |
 |---|---|
-| drop the `/chosen` bootargs | U-Boot merges them over extlinux's `append`; the inherited `earlycon` on UART0 hung every boot ([20-boot-flow.md](20-boot-flow.md)) |
-| make the X1301 HDMI bridge opt-in | without the board, the `tc35874x` driver retried its I2C probe forever and flooded I2C1 |
+| drop the `/chosen` bootargs | U-Boot merges them over extlinux's `append`; the DTS's own `earlycon` on UART0 (replacing `rk3399-linux.dtsi`'s UART2 one) hung every boot ([20-boot-flow.md](20-boot-flow.md)) |
+| make the X1301 HDMI bridge opt-in | without the board, `tc35874x` bound anyway (its chip-ID check accepts 0x0000) and its 1 s status poll flooded I2C1 |
+| make the IMU and compass opt-in | nothing answers at I2C1 0x68 / 0x0d, under stock 4.4 or 6.1; the compass driver logged errors at every boot |
+| drop the rk809 card's DAPM routes | this tree's rk817 codec has no DAPM widgets; adding the routes failed with -ENODEV and tore the whole card down, so there was no analog audio card at all |
+| add the `cpuinfo` node | `/proc/cpuinfo` `Serial` from the eFuse CPU ID, the same value as the stock serial number |
 | describe ramoops in `/reserved-memory` | 6.1's ramoops needs a `ramoops` node with 32-bit sizes; pstore now works |
 | `regulator: fan53555`: option 00, revision 12 | the board's FAN53555s (`vdd_cpu_b`, `vdd_gpu`) report a revision the driver did not know, so both failed to probe and cpufreq gave up on both clusters; ASUS's 4.4 driver maps it to 600 mV + 12.5 mV steps, as this commit does.  Measured: 1.8 GHz at 1.200 V, 1.416 GHz at 1.025 V (the stock OPP table) |
 | `net: phy: realtek`: LED registers from the DT, and the restored stock Ethernet LED setup | see the Ethernet row below |
@@ -77,10 +80,10 @@ fails if any `=y`/`=m` line of a fragment is missing from the result.
 | **Type-C** | Rockchip 4.4 `fairchild,fusb302` extcon driver (int GPIO1_A2, vbus GPIO4_D1 + GPIO2_D2), `extcon` on dwc3/u2phy/tcphy/cdn_dp | upstream TCPM: `fcs,fusb302` with `interrupts` + `int-n-gpios` (this tree's driver wants the GPIO), `vbus-supply = vbus_typec` (fixed regulator GPIO4_D1), `usb-c-connector` (dual data/power, try-sink, 5 V PDOs), `ports` -> `usbdrd_dwc3_0` role switch, connector `port@0` -> `tcphy0` **orientation switch**; `usbdrd_dwc3_0` `dr_mode = otg` + `usb-role-switch`; `usbdrd3_0 extcon = u2phy0` (charger detection) | pattern taken from `rk3399pro-evb-v11-linux.dts` in the same tree; the 4.4 second VBUS GPIO (GPIO2_D2) is left alone (function unknown) |
 | DisplayPort over Type-C | `cdn_dp` enabled with extcon | **disabled** | cdn-dp needs an extcon bridge from TCPM that this tree lacks; Toybrick disables it too |
 | HDMI | `hdmi` + phy table, `hdmi_in_vopb`, `route_hdmi` | same, `hdmi_sound` simple card on I2S2 | 4.4 used `rockchip,rk3399-hdmi-dp` sound which no longer exists |
-| analogue audio | `rk809-sound` simple card on I2S1, `rk_headset` GPIO0_B5/ADC3 | same | |
+| analogue audio | `rk809-sound` simple card on I2S1 with MICBIAS1/IN1P/HPOL/HPOR routes, `rk_headset` GPIO0_B5/ADC3 | same card **without widgets or routes**, same headset node | this tree's rk817 codec has no DAPM widgets; with the routes the card never registered |
 | LEDs | pwr GPIO0_A5, act GPIO0_A3 (mmc trigger), rsv GPIO0_B1 | same, labels kept | |
 | ADC keys | saradc 2 | same | |
-| I2C1 | mpu6500 + ak8963 (Rockchip sensor-dev drivers), ov5647 camera, 24c08 EEPROM | `invensense,mpu6500` + `asahi-kasei,ak8963` (IIO), `atmel,24c08`, **TC358743** (disabled unless the `-hdmirx-csi0` DTB is used) | RPi cameras can be added back with the upstream `ovti,ov5647` / `sony,imx219` bindings (drivers built as modules) |
+| I2C1 | mpu6500 + ak8963 (Rockchip sensor-dev drivers), ov5647 camera, 24c08 EEPROM | `invensense,mpu6500` + `asahi-kasei,ak8963` (IIO, both **disabled**: not populated on the board checked), `atmel,24c08`, **TC358743** (disabled unless the `-hdmirx-csi0` DTB is used) | RPi cameras can be added back with the upstream `ovti,ov5647` / `sony,imx219` bindings (drivers built as modules) |
 | I2C2 | imx219 camera, ft5406 touch | TC358743 (disabled unless the `-hdmirx-csi1` DTB is used) | |
 | I2C4 | ASUS DSI bridges/MCU/touch (all disabled or ASUS-only drivers) | bus enabled, no devices | |
 | I2C6 / I2C7 (header) | disabled | enabled | |

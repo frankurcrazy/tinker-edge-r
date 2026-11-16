@@ -39,7 +39,9 @@ apply; the equivalent is editing the device tree source or `extlinux.conf`
 
 The image stage sizes the rootfs partition by asking ext4: it builds the filesystem
 with room to spare, shrinks it to its minimum (`resize2fs -M`) and grows it by
-`IMG_ROOTFS_MARGIN_MB`.  The first build sized it from `du` on the build host instead,
+`IMG_ROOTFS_MARGIN_MB`.  resize2fs's minimum is an estimate with slack, so the image
+ships with more free space than the margin (2026-11-16: 1.5 GB used, 1.1 GB free in a
+2688 MiB partition); the stage logs the real figure.  The first build sized it from `du` on the build host instead,
 which on a compressed ZFS dataset reported 878 MB for what takes about 1.4 GB on ext4:
 that image's root filesystem was 100 % full, so networkd, sshd and the first-boot
 growing all failed on the first boot.

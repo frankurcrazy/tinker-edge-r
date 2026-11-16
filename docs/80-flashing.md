@@ -8,11 +8,12 @@ xz -dc out/images/tinker-edge-r-ubuntu-22.04-<date>.img.xz | sudo dd of=/dev/sdX
 ```
 
 Insert the card and power the board.  Note the boot ROM order: **eMMC first**.  While
-the eMMC still holds ASUS's image, the eMMC's U-Boot runs, fails its Android boot, and
-its distro boot scans the microSD (`mmc 1`) *before* the eMMC - so it boots this image's
-kernel and rootfs from the card with ASUS's bootloader.  That works, but to run the
-image's own U-Boot/trust from the card the eMMC must be erased or hold no valid loader
-(see maskrom below).
+the eMMC still holds ASUS's image, the eMMC's loader and U-Boot run.  That U-Boot boots
+the card when it finds a Rockchip loader header at the card's sector 64 (this image has
+one), and the eMMC system otherwise ([20-boot-flow.md](20-boot-flow.md)).  So the card
+boots this image's kernel and rootfs with ASUS's bootloader.  To run the image's own
+U-Boot/trust from the card the eMMC must be erased or hold no valid loader (see maskrom
+below).
 
 ## eMMC
 
@@ -76,11 +77,12 @@ loader header at sector 64 ([20-boot-flow.md](20-boot-flow.md)).  So from a runn
 system:
 
 ```sh
-# on this image (card = /dev/mmcblk1): keep sector 64, clear it, reboot into the eMMC
-dd if=/dev/mmcblk1 of=/root/card-sector64.bin bs=512 skip=64 count=1
+# on this image (card = /dev/mmcblk1): clear sector 64, reboot into the eMMC
 dd if=/dev/zero of=/dev/mmcblk1 bs=512 seek=64 count=1 conv=fsync && reboot
-# on ASUS's 4.4 system the card is /dev/mmcblk0: put it back, reboot into the card
-dd if=card-sector64.bin of=/dev/mmcblk0 bs=512 seek=64 count=1 conv=fsync && reboot
+# on ASUS's 4.4 system the card is /dev/mmcblk0.  Sector 64 is the first sector of
+# idbloader.img, so put it back from the image file (or a copy saved on the eMMC
+# system beforehand), then reboot into the card:
+xz -dc <name>.img.xz | dd of=/dev/mmcblk0 bs=512 skip=64 seek=64 count=1 iflag=fullblock conv=fsync && reboot
 ```
 
 Check the device by size first (`lsblk -d`): the two kernels number eMMC and card the

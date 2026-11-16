@@ -20,6 +20,7 @@ Linaro GCC 6.3.1, February 2022).
 | cameras | two RPi-style 15-pin CSI-2 connectors: CSI0 (MIPI RX0, I2C1), CSI1 (MIPI TX1/RX1, I2C2) |
 | audio | RK809 codec, combo jack (headset detect GPIO0_B5, ADC3), SPDIF, I2S0 on the header |
 | header | 40-pin: UART0 (pins 8/10), UART4, I2C6 (3/5), I2C7 (27/28), SPI1, SPI5, I2S0, PWM0/1/3A, SPDIF, CLKOUT |
+| serial number | `96bb2a439d8ef209` on the board checked: ASUS's U-Boot derives `serial#` from the eFuse CPU ID (16 bytes at 0x07, two CRC32 passes over its odd and even bytes); this image reproduces it in `/proc/cpuinfo` |
 | misc | EEPROM 24C08 on I2C1 (0x50); ASUS's DTS also lists an MPU6500 IMU (0x68) + AK8963 compass (0x0d) on I2C1, but nothing answers there on the board checked, under stock 4.4 or 6.1; 3 LEDs, ADC buttons, fan header (GPIO fan on Toybrick, not described by ASUS for this board) |
 
 ## Stock ASUS Debian 10 image
