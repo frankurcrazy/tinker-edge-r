@@ -14,13 +14,13 @@ Linaro GCC 6.3.1, February 2022).
 | NPU link | `USB20_NPU` and `USB30_NPU` nets: the NPU is a USB device behind the on-board GL3523 USB 3.0 hub, not on PCIe |
 | PCIe | x1 to the M.2 Key-E slot (Wi-Fi module RTL8822CE: PCIe Wi-Fi, USB 2.0 Bluetooth `13d3:3548`) |
 | USB | GL3523 4-port USB 3.0 hub: 3 x Type-A 3.0, NPU; Type-C (`TYPEC0` with FUSB302B, `VCC5V0_TYPEC0_EN`); mini-PCIe (USB 2.0 + SIM) for LTE |
-| network | RTL8211F gigabit PHY, RGMII, 125 MHz external clock |
+| network | RTL8211F gigabit PHY at MDIO address 0, RGMII, 125 MHz external clock; jack LEDs on the PHY's LED pins, set up by ASUS's kernel as LCR `0x8910` (LED0 activity, LED1 gigabit link, LED2 100M link) with EEE LED mode off; MAC address in the first six bytes of the EEPROM |
 | PMIC | RK809-3 on I2C0 (0x20); FAN53555 at 0x60 on I2C0 (VDD_CPU_B) and on I2C8 (VDD_GPU) |
 | display | HDMI; MIPI DSI (I2C4); DP over Type-C |
 | cameras | two RPi-style 15-pin CSI-2 connectors: CSI0 (MIPI RX0, I2C1), CSI1 (MIPI TX1/RX1, I2C2) |
 | audio | RK809 codec, combo jack (headset detect GPIO0_B5, ADC3), SPDIF, I2S0 on the header |
 | header | 40-pin: UART0 (pins 8/10), UART4, I2C6 (3/5), I2C7 (27/28), SPI1, SPI5, I2S0, PWM0/1/3A, SPDIF, CLKOUT |
-| misc | EEPROM 24C08 on I2C1 (0x50), MPU6500 IMU (0x68) + AK8963 compass (0x0d) on I2C1, 3 LEDs, ADC buttons, fan header (GPIO fan on Toybrick, not described by ASUS for this board) |
+| misc | EEPROM 24C08 on I2C1 (0x50); ASUS's DTS also lists an MPU6500 IMU (0x68) + AK8963 compass (0x0d) on I2C1, but nothing answers there on the board checked, under stock 4.4 or 6.1; 3 LEDs, ADC buttons, fan header (GPIO fan on Toybrick, not described by ASUS for this board) |
 
 ## Stock ASUS Debian 10 image
 

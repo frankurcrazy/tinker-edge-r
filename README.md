@@ -60,8 +60,9 @@ device under `/usr/share/doc/tinker-edge-r/`.
 
 ## Status
 
-Everything in this repository was built and verified on the build host (compiles,
-packs, images boot-tested only as far as static checks allow).  The image has
-**not yet been booted on hardware** by the author of this build system; the first
-boot on the board is the next step and [docs/90-decisions.md](docs/90-decisions.md)
-lists what to watch for.
+The image boots on a Tinker Edge R from microSD (through the loader on the eMMC) since
+2026-11-16; the first boots turned up the fixes listed in
+[docs/40-kernel-port.md](docs/40-kernel-port.md) and [docs/20-boot-flow.md](docs/20-boot-flow.md).
+[docs/90-decisions.md](docs/90-decisions.md) lists what is verified on the board and
+what is not yet (this image's own loader chain, Wi-Fi association, the Type-C gadget
+with a host, the X1301).

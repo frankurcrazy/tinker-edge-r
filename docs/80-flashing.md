@@ -63,6 +63,25 @@ system).  Nothing in this image touches ASUS's partition layout permanently.
 ## Serial console for troubleshooting
 
 UART0 on the 40-pin header (pin 8 TX, pin 10 RX, pin 6 GND), 115200 8N1, shows the
-kernel from `earlycon` onwards and gives a login prompt.  U-Boot's own messages are on
-UART2 (not on the header) - the extlinux menu timeout (3 s) still applies; the default
-entry boots automatically.
+kernel log once the `ttyFIQ0` console registers (earlier messages are replayed) and
+gives a login prompt.  U-Boot's own messages, and the kernel's `earlycon`, are on UART2,
+which is not wired out: the extlinux menu cannot be used, the default entry boots after
+its 3 s timeout, and another entry is chosen by editing `default` in
+`/boot/extlinux/extlinux.conf`.
+
+## Switching between this card and the eMMC system without touching the card
+
+While the eMMC holds ASUS's loader, its U-Boot boots the card only if the card has a
+loader header at sector 64 ([20-boot-flow.md](20-boot-flow.md)).  So from a running
+system:
+
+```sh
+# on this image (card = /dev/mmcblk1): keep sector 64, clear it, reboot into the eMMC
+dd if=/dev/mmcblk1 of=/root/card-sector64.bin bs=512 skip=64 count=1
+dd if=/dev/zero of=/dev/mmcblk1 bs=512 seek=64 count=1 conv=fsync && reboot
+# on ASUS's 4.4 system the card is /dev/mmcblk0: put it back, reboot into the card
+dd if=card-sector64.bin of=/dev/mmcblk0 bs=512 seek=64 count=1 conv=fsync && reboot
+```
+
+Check the device by size first (`lsblk -d`): the two kernels number eMMC and card the
+other way round.  From the eMMC system the card can also be rewritten with a new image.

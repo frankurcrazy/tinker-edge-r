@@ -5,24 +5,36 @@
 | tree | branch / commit | role |
 |---|---|---|
 | `frankurcrazy/TB-RK3399ProD-Kernel-6.1` | `develop-6.1-rt45` (6.1.118 + PREEMPT_RT patch-6.1.119-rt45, Rockchip vendor drivers, Toybrick RK3399ProD port with NPU support) | base |
-| same repository | **`tinker-edge-r`** = base + `arm64: dts: rockchip: add ASUS Tinker Edge R (RK3399Pro)` | what the manifest builds |
+| same repository | **`tinker-edge-r`** = base + the board DTS + the fixes found booting it (below) | what the manifest builds |
 | `frankurcrazy/tinker-edge-r-debian-kernel` | `linux4.4-rk3399pro` (ASUS's official 4.4.194) | source of truth for board wiring, reference only |
 
-The port is a single commit adding three files under `arch/arm64/boot/dts/rockchip/`:
+The board lives in four files under `arch/arm64/boot/dts/rockchip/`:
 
 * `rk3399pro-tinker-edge-r.dtsi` - the board
-* `rk3399pro-tinker-edge-r.dts` - default DTB (HDMI-RX bridge on CSI0)
-* `rk3399pro-tinker-edge-r-hdmirx-csi1.dts` - variant with the bridge on CSI1
+* `rk3399pro-tinker-edge-r.dts` - default DTB, no HDMI-RX board
+* `rk3399pro-tinker-edge-r-hdmirx-csi0.dts` - variant with an X1301 on CSI0
+* `rk3399pro-tinker-edge-r-hdmirx-csi1.dts` - variant with an X1301 on CSI1
 
-plus the Makefile entries.  The same change is kept as `patches/kernel/0001-*.patch`
-and as a staging copy in `kernel/` of the build repository; the kernel branch is canonical.
+plus the Makefile entries.  On top of the DTS commit, the branch carries what booting
+the board turned up (2026-11-16):
+
+| commit | fixes |
+|---|---|
+| drop the `/chosen` bootargs | U-Boot merges them over extlinux's `append`; the inherited `earlycon` on UART0 hung every boot ([20-boot-flow.md](20-boot-flow.md)) |
+| make the X1301 HDMI bridge opt-in | without the board, the `tc35874x` driver retried its I2C probe forever and flooded I2C1 |
+| describe ramoops in `/reserved-memory` | 6.1's ramoops needs a `ramoops` node with 32-bit sizes; pstore now works |
+| `regulator: fan53555`: option 00, revision 12 | the board's FAN53555s (`vdd_cpu_b`, `vdd_gpu`) report a revision the driver did not know, so both failed to probe and cpufreq gave up on both clusters; ASUS's 4.4 driver maps it to 600 mV + 12.5 mV steps, as this commit does.  Measured: 1.8 GHz at 1.200 V, 1.416 GHz at 1.025 V (the stock OPP table) |
+| `net: phy: realtek`: LED registers from the DT, and the restored stock Ethernet LED setup | see the Ethernet row below |
+
+The same changes are kept as `patches/kernel/*.patch` and as a staging copy in
+`kernel/` of the build repository; the kernel branch is canonical.
 
 The kernel is built with `rockchip_linux_defconfig` (the Toybrick maintainer's config,
 `CONFIG_PREEMPT_RT=y`) plus three fragments from `configs/kernel/`:
 
 | fragment | purpose |
 |---|---|
-| `tinker-edge-r.config` | board: RTL8822CE PCIe Wi-Fi (`rtw88_8822ce`) + USB Bluetooth (`btrtl`), no built-in `CONFIG_EXTRA_FIRMWARE` (the Toybrick tree references blobs that are not in git), IMU/compass/EEPROM drivers, GPIO sysfs + debugfs for the NPU tools, cgroups/namespaces/netfilter/overlayfs and USB class drivers a normal Ubuntu expects |
+| `tinker-edge-r.config` | board: RTL8822CE PCIe Wi-Fi (`rtw88_8822ce`) + USB Bluetooth (`btusb`/`btrtl`), `cfg80211`/`mac80211` - all as **modules**, because built in they probe before the root filesystem is mounted and find no firmware (Rockchip's `bcmdhd`, which forces them built in, is off); no built-in `CONFIG_EXTRA_FIRMWARE` (the Toybrick tree references blobs that are not in git), IMU/compass/EEPROM drivers, GPIO sysfs + debugfs for the NPU tools, cgroups/namespaces/netfilter/overlayfs and USB class drivers a normal Ubuntu expects |
 | `usb-gadget-typec.config` | Type-C class (TCPM, FUSB302, DP altmode), dwc3 dual role, `USB_ROLE_SWITCH`, configfs gadget with every function, legacy `g_*` gadgets as modules |
 | `media-hdmi-rx.config` | vendor rkisp1 + MIPI D-PHY RX + vendor `tc35874x` bridge driver (TC358743/TC358749), RPi camera sensors as modules, CEC |
 
@@ -59,7 +71,7 @@ fails if any `=y`/`=m` line of a fragment is missing from the result.
 | PCIe | `pcie0`/`pcie_phy` enabled (EP reset GPIO0_B4 from `rk3399pro.dtsi`) | same + `vpcie3v3-supply = vcc_wifi` | `vcc_wifi` is a fixed regulator on **GPIO2_D3 (WL_REG_ON)**, enabled by the PCIe host before link training |
 | Bluetooth | `wireless-bluetooth` (rfkill-bt) reset GPIO2_D4 | `vcc_bt` fixed regulator, always on, GPIO2_D4 | USB BT (13d3:3548) needs the line high; rfkill-bt's UART assumptions do not apply |
 | Wi-Fi platdata | `wireless-wlan` rtl8822be (wrong chip name) | dropped | upstream rtw88 needs no platdata |
-| Ethernet | `gmac` RGMII, reset GPIO3_B7, delays 0/16000/72000, tx 0x23 rx 0x22, `clkin_gmac` 125 MHz input, ASUS `wolirq-gpio`/`wakeup-enable` | same minus the ASUS-only properties | |
+| Ethernet | `gmac` RGMII, reset GPIO3_B7, delays 0/16000/72000, tx 0x23 rx 0x22, `clkin_gmac` 125 MHz input, ASUS `wolirq-gpio`/`wakeup-enable` | same minus the ASUS-only properties, plus an `mdio` node with the RTL8211F at address 0 carrying `realtek,led-config = <0x8910>` and `realtek,eee-led-disable` | ASUS's `stmmac_main.c` writes those LED registers on every speed change; without them the PHY keeps its reset value 0x6251 and a gigabit link lights only the right-hand LED, in orange.  The MAC address comes from the EEPROM (rootfs `tinker-eth-mac.service`) |
 | USB2 hosts | EHCI/OHCI 0 and 1 enabled, `u2phy0/1` host ports on `vcc5v0_usb` | same | NPU's USB 2.0 link and Type-A ports go through the GL3523 hub |
 | USB3 host (`usbdrd3_1`) | enabled | enabled, `dr_mode = host`, `snps,dis-u3-autosuspend-quirk` | hub + NPU SuperSpeed; quirk from the Toybrick NPU commit |
 | **Type-C** | Rockchip 4.4 `fairchild,fusb302` extcon driver (int GPIO1_A2, vbus GPIO4_D1 + GPIO2_D2), `extcon` on dwc3/u2phy/tcphy/cdn_dp | upstream TCPM: `fcs,fusb302` with `interrupts` + `int-n-gpios` (this tree's driver wants the GPIO), `vbus-supply = vbus_typec` (fixed regulator GPIO4_D1), `usb-c-connector` (dual data/power, try-sink, 5 V PDOs), `ports` -> `usbdrd_dwc3_0` role switch, connector `port@0` -> `tcphy0` **orientation switch**; `usbdrd_dwc3_0` `dr_mode = otg` + `usb-role-switch`; `usbdrd3_0 extcon = u2phy0` (charger detection) | pattern taken from `rk3399pro-evb-v11-linux.dts` in the same tree; the 4.4 second VBUS GPIO (GPIO2_D2) is left alone (function unknown) |
@@ -68,7 +80,7 @@ fails if any `=y`/`=m` line of a fragment is missing from the result.
 | analogue audio | `rk809-sound` simple card on I2S1, `rk_headset` GPIO0_B5/ADC3 | same | |
 | LEDs | pwr GPIO0_A5, act GPIO0_A3 (mmc trigger), rsv GPIO0_B1 | same, labels kept | |
 | ADC keys | saradc 2 | same | |
-| I2C1 | mpu6500 + ak8963 (Rockchip sensor-dev drivers), ov5647 camera, 24c08 EEPROM | `invensense,mpu6500` + `asahi-kasei,ak8963` (IIO), `atmel,24c08`, **TC358743** (see below) | RPi cameras can be added back with the upstream `ovti,ov5647` / `sony,imx219` bindings (drivers built as modules) |
+| I2C1 | mpu6500 + ak8963 (Rockchip sensor-dev drivers), ov5647 camera, 24c08 EEPROM | `invensense,mpu6500` + `asahi-kasei,ak8963` (IIO), `atmel,24c08`, **TC358743** (disabled unless the `-hdmirx-csi0` DTB is used) | RPi cameras can be added back with the upstream `ovti,ov5647` / `sony,imx219` bindings (drivers built as modules) |
 | I2C2 | imx219 camera, ft5406 touch | TC358743 (disabled unless the `-hdmirx-csi1` DTB is used) | |
 | I2C4 | ASUS DSI bridges/MCU/touch (all disabled or ASUS-only drivers) | bus enabled, no devices | |
 | I2C6 / I2C7 (header) | disabled | enabled | |

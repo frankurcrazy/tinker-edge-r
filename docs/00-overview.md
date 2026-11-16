@@ -10,7 +10,7 @@ that keeps the board's special hardware usable:
 | NPU support | Rockchip 6.1 vendor kernel keeps the USB/GPIO/debugfs facilities the NPU tools need; the rootfs ships the firmware, `npu_transfer_proxy`, `librknn_api`, RKNN Toolkit Lite and systemd units that load the NPU at boot ([50-npu.md](50-npu.md)) |
 | Type-C device class + full USB gadget | TCPM + FUSB302 + dwc3 dual role + orientation switch in the device tree; every gadget function enabled; a configfs gadget service ([60-usb-gadget-typec.md](60-usb-gadget-typec.md)) |
 | dual-role switch for dwc3 and FUSB302 | `usb-role-switch` graph between the FUSB302 connector and `usbdrd_dwc3_0` ([40-kernel-port.md](40-kernel-port.md)) |
-| Geekworm X1301 HDMI RX | TC358743 node on CSI0 (or CSI1 via a second DTB), vendor rkisp1 pipeline, EDID + setup helper ([70-hdmi-rx.md](70-hdmi-rx.md)) |
+| Geekworm X1301 HDMI RX (optional) | TC358743 node on CSI0 or CSI1, enabled by the matching DTB / extlinux entry, vendor rkisp1 pipeline, EDID + setup helper ([70-hdmi-rx.md](70-hdmi-rx.md)) |
 | separate repositories | `repo` manifest in this repository ties kernel, U-Boot, rootfs, Rockchip blobs and NPU userspace together at pinned revisions |
 | container build | every stage runs in `docker/Dockerfile`'s image; only `git`/`repo`/`docker` are needed on the host |
 | documentation | this `docs/` tree, also installed on the device |

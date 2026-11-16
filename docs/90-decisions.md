@@ -21,36 +21,48 @@
 | kernel console on UART0 (fiq debugger, 115200) | UART2 (`ttyS2`, Rockchip default 1.5 Mbaud) | UART0 is what ASUS exposes on the 40-pin header and what their image uses; U-Boot itself still logs on UART2 |
 | default user `tinker`/`tinker` with passwordless sudo, SSH password login | no default account | development-board convention; change at first login (`passwd`) or set `ROOTFS_PASSWORD` when building |
 
+## Verified on hardware (2026-11-16)
+
+On a Tinker Edge R with ASUS's Debian 10 still on the eMMC, booting this image from
+microSD through the eMMC's loader and U-Boot:
+
+* boot: ASUS's 2017.09 U-Boot reads the ext4 boot partition and runs the extlinux entry;
+  the kernel boots once `earlycon` is on UART2 and the DTB has no `/chosen/bootargs`
+  ([20-boot-flow.md](20-boot-flow.md))
+* NPU: `npu-status` reaches `run system ok`, the RK1808 enumerates on USB (`2207:0019`)
+* Ethernet at 1 Gbit/s with the stock LED registers (LCR `0x8910`, EEELCR `0`)
+* DVFS: `vdd_cpu_b`/`vdd_gpu` (FAN53555) probe; the big cluster runs 408 MHz-1.8 GHz
+  at the stock OPP voltages, the little one up to 1.416 GHz; GPU devfreq; ramoops
+* PCIe Wi-Fi enumerates (RTL8822CE) and the USB Bluetooth loads its firmware (`hci0`)
+* VPU through `/dev/mpp_service` (VDPU2, VEPU2, RKVDEC), RGA, IEP: with MPP and the
+  `rockchipmpp` GStreamer plugin installed, H.264 encode/decode and JPEG decode work,
+  including from a USB HDMI capture stick (MS2130); the image itself does not ship MPP
+
 ## Risks / not yet verified on hardware
 
-Ordered by impact.  Everything below compiled and was checked statically; the image has
-not been booted on a Tinker Edge R yet.
+Ordered by impact.
 
-1. **DDR / boot blobs**: rkbin master blobs instead of ASUS's originals.  Symptom of a
-   mismatch: no U-Boot output on UART2 / no boot.  Fallback: ASUS's Debian image on the
-   eMMC provides a working U-Boot which boots this image from microSD anyway
-   ([80-flashing.md](80-flashing.md)).
-2. **Boot partition readability by the 2017.09 U-Boot**: ext4 without `metadata_csum`/`64bit`
-   was chosen for that reason; if `sysboot` cannot read it, reformat as ext2 (Toybrick used
-   ext2) by changing `mke2fs -t ext4` to `-t ext2` in `scripts/stage-image.sh`.
-3. **NPU bring-up**: `npu_powerctrl` GPIOs 35/56 and the debugfs clock hooks are inherited
-   from the vendor tooling; the DTS keeps those GPIOs unclaimed.  Verify with `npu-status`;
-   `/tmp/npu.log` shows where the maskrom sequence stops.
-4. **Type-C orientation switch / SuperSpeed gadget**: EVB pattern, untested here.
-   Fallback documented in [40-kernel-port.md](40-kernel-port.md).
-5. **Wi-Fi**: `vcc_wifi` (GPIO2_D3) as `vpcie3v3-supply` must be high before PCIe link
-   training; if the RTL8822CE is not enumerated (`lspci`), check `dmesg | grep pcie` and
-   consider `regulator-boot-on` timing or the PERST# GPIO (GPIO0_B4).
-6. **HDMI-RX pipeline**: vendor rkisp1 + tc35874x, format propagation via `media-ctl`
-   ([70-hdmi-rx.md](70-hdmi-rx.md)).
-7. **VDD_LOG**: left as programmed by U-Boot (PWM2), same as the Toybrick port.
-8. RT kernel + gadget/ISP drivers: the tree's maintainer fixed several RT issues; new ones
+1. **This image's own loader chain** (rkbin DDR/miniloader/trust and this U-Boot build):
+   never executed, because the boot ROM takes the eMMC's ASUS loader first.  On a board
+   with an empty eMMC a mismatch shows as no boot at all.  Fallback: ASUS's image on the
+   eMMC, which boots this card anyway ([80-flashing.md](80-flashing.md)).
+2. **Booting without `clk_ignore_unused`**: every boot so far had it.  Dropping it needs
+   someone at the board: a hang there leaves nothing to log into.
+3. **Wi-Fi association**: the RTL8822CE driver failed to load its firmware while it was
+   built in (it probed before the root filesystem was mounted); it is a module now, and
+   connecting to an access point has not been tried yet.
+4. **Type-C orientation switch / SuperSpeed gadget**: EVB pattern, untested with a host
+   attached.  Fallback documented in [40-kernel-port.md](40-kernel-port.md).
+5. **HDMI-RX pipeline** (X1301): vendor rkisp1 + tc35874x, format propagation via
+   `media-ctl` ([70-hdmi-rx.md](70-hdmi-rx.md)); no X1301 has been attached yet.
+6. **VDD_LOG**: left as programmed by U-Boot (PWM2), same as the Toybrick port.
+7. RT kernel + gadget/ISP drivers: the tree's maintainer fixed several RT issues; new ones
    may surface under load (switch to `PREEMPT` if so).
 
 ## Next steps
 
-1. Flash a microSD card, attach the UART0 console, boot, and go through
-   `npu-status`, `usb-gadget-setup status`, `lspci`, `hciconfig`, `hdmirx-setup status`.
-2. Pin the manifest to the tested commits (`repo manifest -r -o default.xml`) and tag.
+1. Connect the Wi-Fi to an access point; attach a host to the Type-C port
+   (`usb-gadget-setup status`); attach an X1301 (`hdmirx-setup status`).
+2. With someone at the board: boot once without `clk_ignore_unused`.
 3. Optional improvements: systemd sleep hook to reload the NPU after suspend; DP altmode
    via an extcon shim; `fdtoverlays` support would need a newer U-Boot.

@@ -66,7 +66,9 @@ systemctl restart usb-gadget            # after editing /etc/default/usb-gadget
 
 The script derives stable MAC addresses and the serial number from the SoC serial
 (`/proc/device-tree/serial-number`), sets `bcdUSB 0x0320` so SuperSpeed descriptors are
-offered, and binds to `fe800000.dwc3`.
+offered, and binds to `fe800000.dwc3`.  It waits up to 30 s for that UDC: the dwc3 role
+switch registers it only once TCPM has probed, which can be after the service starts
+(on the first boots the service failed with no UDC to bind to).
 
 ### Using a legacy gadget instead
 
