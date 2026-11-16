@@ -8,11 +8,12 @@ xz -dc out/images/tinker-edge-r-ubuntu-22.04-<date>.img.xz | sudo dd of=/dev/sdX
 ```
 
 Insert the card and power the board.  Note the boot ROM order: **eMMC first**.  While
-the eMMC still holds ASUS's image, the eMMC's U-Boot runs, fails its Android boot, and
-its distro boot scans the microSD (`mmc 1`) *before* the eMMC - so it boots this image's
-kernel and rootfs from the card with ASUS's bootloader.  That works, but to run the
-image's own U-Boot/trust from the card the eMMC must be erased or hold no valid loader
-(see maskrom below).
+the eMMC still holds ASUS's image, the eMMC's loader and U-Boot run.  That U-Boot boots
+the card when it finds a Rockchip loader header at the card's sector 64 (this image has
+one), and the eMMC system otherwise ([20-boot-flow.md](20-boot-flow.md)).  So the card
+boots this image's kernel and rootfs with ASUS's bootloader.  To run the image's own
+U-Boot/trust from the card the eMMC must be erased or hold no valid loader (see maskrom
+below).
 
 ## eMMC
 
@@ -63,6 +64,26 @@ system).  Nothing in this image touches ASUS's partition layout permanently.
 ## Serial console for troubleshooting
 
 UART0 on the 40-pin header (pin 8 TX, pin 10 RX, pin 6 GND), 115200 8N1, shows the
-kernel from `earlycon` onwards and gives a login prompt.  U-Boot's own messages are on
-UART2 (not on the header) - the extlinux menu timeout (3 s) still applies; the default
-entry boots automatically.
+kernel log once the `ttyFIQ0` console registers (earlier messages are replayed) and
+gives a login prompt.  U-Boot's own messages, and the kernel's `earlycon`, are on UART2,
+which is not wired out: the extlinux menu cannot be used, the default entry boots after
+its 3 s timeout, and another entry is chosen by editing `default` in
+`/boot/extlinux/extlinux.conf`.
+
+## Switching between this card and the eMMC system without touching the card
+
+While the eMMC holds ASUS's loader, its U-Boot boots the card only if the card has a
+loader header at sector 64 ([20-boot-flow.md](20-boot-flow.md)).  So from a running
+system:
+
+```sh
+# on this image (card = /dev/mmcblk1): clear sector 64, reboot into the eMMC
+dd if=/dev/zero of=/dev/mmcblk1 bs=512 seek=64 count=1 conv=fsync && reboot
+# on ASUS's 4.4 system the card is /dev/mmcblk0.  Sector 64 is the first sector of
+# idbloader.img, so put it back from the image file (or a copy saved on the eMMC
+# system beforehand), then reboot into the card:
+xz -dc <name>.img.xz | dd of=/dev/mmcblk0 bs=512 skip=64 seek=64 count=1 iflag=fullblock conv=fsync && reboot
+```
+
+Check the device by size first (`lsblk -d`): the two kernels number eMMC and card the
+other way round.  From the eMMC system the card can also be rewritten with a new image.

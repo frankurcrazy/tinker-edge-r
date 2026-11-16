@@ -22,10 +22,14 @@ The Tinker Edge R has two such 15-pin connectors:
   `tc358743` driver claims the same compatible and stays off.
 * Device tree: `hdmirx_csi0: tc358743@f` on I2C1 with `refclk` = 27 MHz fixed clock,
   2 data lanes, `link-frequencies = 297000000` (594 Mbit/s per lane, the Raspberry Pi
-  overlay value) into `mipi_dphy_rx0` port 0, then `rkisp1_0`.  The default DTB enables
-  it on **CSI0**; `rk3399pro-tinker-edge-r-hdmirx-csi1.dtb` (extlinux entry
-  `hdmirx-csi1`) enables the CSI1 copy instead.  Without the board attached the bridge
-  probe fails with an I2C error and the ISP simply has no source - harmless.
+  overlay value) into `mipi_dphy_rx0` port 0, then `rkisp1_0`.  The X1301 is optional,
+  so the default DTB leaves both bridge nodes **disabled**: without the board, the
+  `tc35874x` driver bound anyway (its chip-ID check accepts 0x0000) and its 1 s status
+  poll flooded I2C1 with failed transfers.  With the board
+  attached, boot the matching extlinux entry: `hdmirx-csi0`
+  (`rk3399pro-tinker-edge-r-hdmirx-csi0.dtb`) or `hdmirx-csi1`
+  (`rk3399pro-tinker-edge-r-hdmirx-csi1.dtb`), by setting `default` in
+  `/boot/extlinux/extlinux.conf` (the U-Boot menu cannot be reached on this board).
 
 ## Using it
 
@@ -66,6 +70,7 @@ sources do not refuse the sink).
   ISP accepts the UYVY source format on `rkisp1-isp-subdev` pad 0 (if not, try
   `YUYV8_2X8`, or switch `CONFIG_VIDEO_TC35874X`/`CONFIG_VIDEO_TC358743` and the
   `isp0`/`rkisp1_0` nodes to the upstream pairing).
-* If the bridge is on CSI1, boot the `hdmirx-csi1` extlinux entry.
+* Boot the `hdmirx-csi0` or `hdmirx-csi1` extlinux entry, whichever connector the
+  board is on; the default entry has no bridge.
 * Raspberry Pi cameras (OV5647 v1.3, IMX219 v2) can be described on the same connectors
   with the upstream bindings; the drivers are built as modules (`ov5647`, `imx219`).

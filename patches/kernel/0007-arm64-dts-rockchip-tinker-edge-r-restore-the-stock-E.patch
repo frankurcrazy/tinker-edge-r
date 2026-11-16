@@ -1,0 +1,61 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Frank Chang <frank.aka.hao.hao@gmail.com>
+Date: Mon, 16 Nov 2026 12:32:51 +0000
+Subject: [PATCH 7/8] arm64: dts: rockchip: tinker-edge-r: restore the stock
+ Ethernet LED setup
+
+The 6.1 kernel left the RTL8211F LEDs at their reset value 0x6251 (each
+LED for one link speed plus activity), so on a gigabit link only the
+right-hand LED lit, in orange.  ASUS's 4.4 kernel sets LCR to 0x8910 and
+clears EEELCR on every speed change (set_led_configuration() in
+stmmac_main.c); the stock image reads back exactly that: LED0 blinks on
+activity, LED1 lights on a gigabit link, LED2 on a 100M link.
+
+Describe the PHY (address 0) under an mdio node so it gets a DT node, and
+give it the stock values.
+---
+ .../dts/rockchip/rk3399pro-tinker-edge-r.dtsi | 24 +++++++++++++++++++
+ 1 file changed, 24 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi b/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi
+index 4d29ad205..b2697867d 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi
+@@ -416,6 +416,7 @@ &fiq_debugger {
+ &gmac {
+ 	phy-supply = <&vcc_phy>;
+ 	phy-mode = "rgmii";
++	phy-handle = <&rtl8211f>;
+ 	clock_in_out = "input";
+ 	snps,reset-gpio = <&gpio3 RK_PB7 GPIO_ACTIVE_LOW>;
+ 	snps,reset-active-low;
+@@ -427,6 +428,29 @@ &gmac {
+ 	tx_delay = <0x23>;
+ 	rx_delay = <0x22>;
+ 	status = "okay";
++
++	mdio {
++		compatible = "snps,dwmac-mdio";
++		#address-cells = <1>;
++		#size-cells = <0>;
++
++		rtl8211f: ethernet-phy@0 {
++			compatible = "ethernet-phy-ieee802.3-c22";
++			reg = <0>;
++			/*
++			 * The stock LED setup, from set_led_configuration() in
++			 * ASUS's 4.4 stmmac_main.c (and read back on the stock
++			 * image): LED0 blinks on activity, LED1 lights on a
++			 * gigabit link, LED2 on a 100M link; EEE LED mode off.
++			 * The PHY reset at probe would otherwise leave the reset
++			 * value 0x6251 (one LED per link speed, plus activity),
++			 * which on a gigabit link lights only the right-hand LED,
++			 * in orange.
++			 */
++			realtek,led-config = <0x8910>;
++			realtek,eee-led-disable;
++		};
++	};
+ };
+ 
+ &gpu {

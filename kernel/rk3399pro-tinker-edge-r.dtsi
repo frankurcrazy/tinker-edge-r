@@ -34,6 +34,27 @@
 /* No U-Boot logo hand-over on this image (see Toybrick prod-linux). */
 /delete-node/ &drm_logo;
 
+/*
+ * pstore/ramoops.  rk3399-linux.dtsi points a top-level "ramoops" node at a
+ * reserved region through memory-region, which this kernel's ramoops driver
+ * does not support ("failed to locate DT /reserved-memory resource"), and
+ * gives its sizes as two cells where the driver reads one.  Describe the same
+ * region the upstream way: a "ramoops" child of /reserved-memory.
+ */
+/delete-node/ &ramoops;
+/delete-node/ &ramoops_mem;
+
+&{/reserved-memory} {
+	ramoops@110000 {
+		compatible = "ramoops";
+		reg = <0x0 0x110000 0x0 0xf0000>;
+		record-size = <0x40000>;
+		console-size = <0x80000>;
+		ftrace-size = <0x0>;
+		pmsg-size = <0x0>;
+	};
+};
+
 / {
 	model = "ASUS Tinker Edge R";
 	compatible = "asus,tinker-edge-r", "rockchip,rk3399pro-tinker-edge-r",
@@ -46,8 +67,17 @@
 	};
 
 	chosen {
-		/* Overridden by the bootloader (extlinux append); kept as a sane default. */
-		bootargs = "earlycon=uart8250,mmio32,0xff180000 console=ttyFIQ0,115200n8 console=tty0 swiotlb=1 coherent_pool=1m";
+		/*
+		 * No bootargs here, and none inherited from rk3399-linux.dtsi.
+		 * Rockchip's U-Boot merges /chosen/bootargs OVER the extlinux
+		 * "append" line (fdt_chosen -> env_update_filter: an argument
+		 * with the same key is replaced), so whatever is set here wins.
+		 * The earlycon on UART0 this node used to carry hung every boot:
+		 * U-Boot only sets up UART2, and the 8250 early console waits
+		 * forever on an uninitialised UART.  The kernel command line
+		 * lives in /boot/extlinux/extlinux.conf alone.
+		 */
+		/delete-property/ bootargs;
 	};
 
 	adc-keys {
@@ -147,14 +177,13 @@
 		simple-audio-card,format = "i2s";
 		simple-audio-card,name = "rockchip,rk809";
 		simple-audio-card,mclk-fs = <256>;
-		simple-audio-card,widgets =
-			"Microphone", "Mic Jack",
-			"Headphone", "Headphone Jack";
-		simple-audio-card,routing =
-			"Mic Jack", "MICBIAS1",
-			"IN1P", "Mic Jack",
-			"Headphone Jack", "HPOL",
-			"Headphone Jack", "HPOR";
+		/*
+		 * No widgets/routing: this tree's rk817 codec driver has no DAPM
+		 * widgets (it switches paths through its own controls).  With the
+		 * MICBIAS1/IN1P/HPOL/HPOR routes ASUS's DTS carries, adding them
+		 * failed with -ENODEV and the whole card was torn down: no analog
+		 * audio card at all.  Do not add routes back.
+		 */
 
 		simple-audio-card,cpu {
 			sound-dai = <&i2s1>;
@@ -162,6 +191,17 @@
 		simple-audio-card,codec {
 			sound-dai = <&rk809_codec>;
 		};
+	};
+
+	/*
+	 * The SoC serial number (/proc/cpuinfo "Serial") from the eFuse CPU ID,
+	 * mixed the way Rockchip's U-Boot derives serial# - the board's stock
+	 * serial number.  rk3399.dtsi has the cell but no cpuinfo node.
+	 */
+	cpuinfo {
+		compatible = "rockchip,cpuinfo";
+		nvmem-cells = <&cpu_id>;
+		nvmem-cell-names = "id";
 	};
 
 	rk_headset {
@@ -386,6 +426,7 @@
 &gmac {
 	phy-supply = <&vcc_phy>;
 	phy-mode = "rgmii";
+	phy-handle = <&rtl8211f>;
 	clock_in_out = "input";
 	snps,reset-gpio = <&gpio3 RK_PB7 GPIO_ACTIVE_LOW>;
 	snps,reset-active-low;
@@ -397,6 +438,29 @@
 	tx_delay = <0x23>;
 	rx_delay = <0x22>;
 	status = "okay";
+
+	mdio {
+		compatible = "snps,dwmac-mdio";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		rtl8211f: ethernet-phy@0 {
+			compatible = "ethernet-phy-ieee802.3-c22";
+			reg = <0>;
+			/*
+			 * The stock LED setup, from set_led_configuration() in
+			 * ASUS's 4.4 stmmac_main.c (and read back on the stock
+			 * image): LED0 blinks on activity, LED1 lights on a
+			 * gigabit link, LED2 on a 100M link; EEE LED mode off.
+			 * The PHY reset at probe would otherwise leave the reset
+			 * value 0x6251 (one LED per link speed, plus activity),
+			 * which on a gigabit link lights only the right-hand LED,
+			 * in orange.
+			 */
+			realtek,led-config = <0x8910>;
+			realtek,eee-led-disable;
+		};
+	};
 };
 
 &gpu {
@@ -719,6 +783,12 @@
 	i2c-scl-rising-time-ns = <140>;
 	i2c-scl-falling-time-ns = <30>;
 
+	/*
+	 * ASUS's DTS lists an MPU6500 IMU and an AK8963 compass here, but on
+	 * the boards checked nothing answers at 0x68 or 0x0d, under the stock
+	 * 4.4 image or this kernel; only the EEPROM does.  Set these to "okay"
+	 * on a board that has them.
+	 */
 	mpu6500@68 {
 		compatible = "invensense,mpu6500";
 		reg = <0x68>;
@@ -727,11 +797,13 @@
 		mount-matrix = "0", "1", "0",
 			       "1", "0", "0",
 			       "0", "0", "1";
+		status = "disabled";
 	};
 
 	ak8963@d {
 		compatible = "asahi-kasei,ak8963";
 		reg = <0x0d>;
+		status = "disabled";
 		interrupt-parent = <&gpio3>;
 		interrupts = <RK_PD7 IRQ_TYPE_EDGE_RISING>;
 	};
@@ -745,7 +817,12 @@
 	/*
 	 * Geekworm X1301 (TC358743XBG) on CSI0, 2 data lanes.  297 MHz link
 	 * frequency = 594 Mbps/lane: 1080p30 / 720p60 4:2:2 like the Raspberry
-	 * Pi tc358743 overlay.  Probe fails harmlessly when nothing is attached.
+	 * Pi tc358743 overlay.
+	 *
+	 * Optional, so disabled here: with no board attached the tc35874x
+	 * driver retries its I2C reads once a second forever and floods the
+	 * kernel log.  Boot the rk3399pro-tinker-edge-r-hdmirx-csi0.dtb
+	 * variant (extlinux entry "hdmirx-csi0") once an X1301 is plugged in.
 	 */
 	hdmirx_csi0: tc358743@f {
 		compatible = "toshiba,tc358743";
@@ -756,7 +833,7 @@
 		rockchip,camera-module-facing = "back";
 		rockchip,camera-module-name = "X1301-HDMI-RX";
 		rockchip,camera-module-lens-name = "none";
-		status = "okay";
+		status = "disabled";
 
 		port {
 			hdmirx_csi0_out: endpoint {

@@ -1,0 +1,93 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Frank Chang <frank.aka.hao.hao@gmail.com>
+Date: Mon, 16 Nov 2026 11:30:14 +0000
+Subject: [PATCH 3/8] arm64: dts: rockchip: tinker-edge-r: make the X1301 HDMI
+ bridge opt-in
+
+With no Geekworm X1301 attached, the tc35874x driver retries its I2C reads once a second for good and floods the kernel log. Disable the CSI0 bridge in the default DTB and add an rk3399pro-tinker-edge-r-hdmirx-csi0 variant that enables it, next to the existing CSI1 one.
+---
+ arch/arm64/boot/dts/rockchip/Makefile           |  1 +
+ .../rk3399pro-tinker-edge-r-hdmirx-csi0.dts     | 17 +++++++++++++++++
+ .../dts/rockchip/rk3399pro-tinker-edge-r.dts    |  6 ++++--
+ .../dts/rockchip/rk3399pro-tinker-edge-r.dtsi   |  9 +++++++--
+ 4 files changed, 29 insertions(+), 4 deletions(-)
+ create mode 100644 arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r-hdmirx-csi0.dts
+
+diff --git a/arch/arm64/boot/dts/rockchip/Makefile b/arch/arm64/boot/dts/rockchip/Makefile
+index 769936054..0fceb95b8 100644
+--- a/arch/arm64/boot/dts/rockchip/Makefile
++++ b/arch/arm64/boot/dts/rockchip/Makefile
+@@ -106,6 +106,7 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3399-sapphire-excavator.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3399-sapphire-excavator-edp-avb.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3399pro-toybrick-prod-linux.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3399pro-tinker-edge-r.dtb
++dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3399pro-tinker-edge-r-hdmirx-csi0.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3399pro-tinker-edge-r-hdmirx-csi1.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3399pro-rock-pi-n10.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3518-evb1-ddr4-v10.dtb
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r-hdmirx-csi0.dts b/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r-hdmirx-csi0.dts
+new file mode 100644
+index 000000000..0c7784ef9
+--- /dev/null
++++ b/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r-hdmirx-csi0.dts
+@@ -0,0 +1,17 @@
++// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++/*
++ * ASUS Tinker Edge R - variant with the HDMI-RX board (Geekworm X1301,
++ * TC358743) plugged into the CSI0 connector.
++ * Select it from the extlinux boot menu ("hdmirx-csi0" entry).
++ */
++
++/dts-v1/;
++#include "rk3399pro-tinker-edge-r.dtsi"
++
++/ {
++	model = "ASUS Tinker Edge R (HDMI-RX on CSI0)";
++};
++
++&hdmirx_csi0 {
++	status = "okay";
++};
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dts b/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dts
+index bda6cd74f..2dabcd3fe 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dts
++++ b/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dts
+@@ -1,7 +1,9 @@
+ // SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+ /*
+- * ASUS Tinker Edge R - default configuration:
+- *   HDMI-RX (Geekworm X1301, TC358743) on the CSI0 connector, CSI1 idle.
++ * ASUS Tinker Edge R - default configuration: no HDMI-RX board.
++ * The Geekworm X1301 (TC358743) is optional; boot the -hdmirx-csi0 or
++ * -hdmirx-csi1 variant (extlinux entries of the same names) when it is
++ * plugged into the CSI0 or CSI1 connector.
+  */
+ 
+ /dts-v1/;
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi b/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi
+index 378432eb4..c65c4562a 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi
+@@ -754,7 +754,12 @@ eeprom@50 {
+ 	/*
+ 	 * Geekworm X1301 (TC358743XBG) on CSI0, 2 data lanes.  297 MHz link
+ 	 * frequency = 594 Mbps/lane: 1080p30 / 720p60 4:2:2 like the Raspberry
+-	 * Pi tc358743 overlay.  Probe fails harmlessly when nothing is attached.
++	 * Pi tc358743 overlay.
++	 *
++	 * Optional, so disabled here: with no board attached the tc35874x
++	 * driver retries its I2C reads once a second forever and floods the
++	 * kernel log.  Boot the rk3399pro-tinker-edge-r-hdmirx-csi0.dtb
++	 * variant (extlinux entry "hdmirx-csi0") once an X1301 is plugged in.
+ 	 */
+ 	hdmirx_csi0: tc358743@f {
+ 		compatible = "toshiba,tc358743";
+@@ -765,7 +770,7 @@ hdmirx_csi0: tc358743@f {
+ 		rockchip,camera-module-facing = "back";
+ 		rockchip,camera-module-name = "X1301-HDMI-RX";
+ 		rockchip,camera-module-lens-name = "none";
+-		status = "okay";
++		status = "disabled";
+ 
+ 		port {
+ 			hdmirx_csi0_out: endpoint {

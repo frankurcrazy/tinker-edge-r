@@ -46,6 +46,10 @@ dbg "cat /extlinux/extlinux.conf" "$W/boot.img" > "$W/extlinux.conf"
 check '[ -s "$W/extlinux.conf" ]' "extlinux/extlinux.conf readable"
 check 'grep -q "root=PARTUUID=$ROOT_PARTUUID" "$W/extlinux.conf"' "extlinux root=PARTUUID matches the rootfs partition GUID"
 check 'grep -q "fdt /dtbs/$KERNEL_DEFAULT_DTB" "$W/extlinux.conf"' "default entry uses $KERNEL_DEFAULT_DTB"
+dbg "ls -l /dtbs" "$W/boot.img" > "$W/dtbsls.txt"
+for fdt in $(awk '$1 == "fdt" {print $2}' "$W/extlinux.conf" | sort -u); do
+    check 'grep -q " $(basename "$fdt")$" "$W/dtbsls.txt"' "extlinux DTB $fdt on the boot partition"
+done
 dbg "ls -l /" "$W/boot.img" > "$W/bootls.txt"
 check 'grep -q " Image$" "$W/bootls.txt"' "Image on the boot partition"
 dbg "dump /Image $W/Image" "$W/boot.img" >/dev/null
@@ -63,7 +67,8 @@ check 'dtprop "usb-c-connector"'               "usb-c-connector present"
 check 'dtprop "usb-role-switch;"'              "dwc3 usb-role-switch (dual role)"
 check 'dtprop "orientation-switch;"'           "tcphy0 orientation-switch"
 check 'dtprop "dr_mode = \"otg\""'             "usbdrd_dwc3_0 dr_mode otg"
-check 'dtprop "toshiba,tc358743"'              "TC358743 HDMI-RX node"
+check 'dtprop "toshiba,tc358743"'              "TC358743 HDMI-RX node described (enabled only by the -hdmirx DTBs)"
+check '! dtprop "bootargs"'                    "no /chosen bootargs (U-Boot would merge them over extlinux)"
 check 'dtprop "vpcie3v3-supply"'               "PCIe Wi-Fi power via vpcie3v3-supply"
 check 'dtprop "rk808-clkout2"'                 "RK809 clkout2 (NPU reference clock)"
 check 'dtprop "rockchip,rk809"'                "RK809 PMIC"
@@ -88,10 +93,13 @@ check 'rfls /usr/share/npu_fw | grep -q boot.img' "NPU firmware set in /usr/shar
 for f in /usr/bin/npu_transfer_proxy /usr/bin/upgrade_tool /usr/bin/npu_powerctrl /usr/bin/npu_upgrade /usr/lib/aarch64-linux-gnu/librknn_api.so /usr/include/rknn_api.h /usr/local/sbin/npu-firmware-load /usr/local/sbin/usb-gadget-setup /usr/local/sbin/hdmirx-setup /usr/local/sbin/tinker-first-boot /usr/share/hdmirx/edid-1080p30.bin /etc/default/usb-gadget /etc/systemd/network/20-usb-gadget.network; do
     check 'rfexists $f' "$f"
 done
-for u in npu-firmware.service npu-transfer-proxy.service usb-gadget.service ssh.service systemd-networkd.service; do
+for u in npu-firmware.service npu-transfer-proxy.service tinker-first-boot.service tinker-eth-mac.service ssh.service systemd-networkd.service; do
     check 'rfls /etc/systemd/system/multi-user.target.wants | grep -qx $u' "enabled: $u"
 done
-check 'rfls /etc/systemd/system/sysinit.target.wants | grep -qx tinker-first-boot.service' "enabled: tinker-first-boot.service"
+# usb-gadget.service is started by udev when the UDC appears, not enabled
+check 'rfls /etc/udev/rules.d | grep -qx 81-usb-gadget-udc.rules' "udev starts usb-gadget.service (81-usb-gadget-udc.rules)"
+check '! rfls /etc/systemd/system/multi-user.target.wants | grep -qx usb-gadget.service' "usb-gadget.service not enabled at boot"
+check '! rf /etc/default/usb-gadget | grep -q "^GADGET_UDC=\"fe800000.dwc3\""' "gadget not pinned to 4.4's UDC name"
 check 'rfls /usr/local/lib/python3.10/dist-packages | grep -q rknnlite' "rknn_toolkit_lite installed for python3.10"
 check '[ "$(dbg "stat /usr/local/sbin/usb-gadget-setup" "$W/rootfs.img" | sed -n "s/.*User: *\([0-9]*\).*/\1/p" | head -1)" = 0 ]' "overlay files are root-owned"
 check '[ -z "$(rf /etc/machine-id)" ]' "machine-id empty (regenerated on first boot)"

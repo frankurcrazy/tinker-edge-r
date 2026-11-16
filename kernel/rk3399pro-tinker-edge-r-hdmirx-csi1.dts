@@ -2,7 +2,8 @@
 /*
  * ASUS Tinker Edge R - variant with the HDMI-RX board (Geekworm X1301,
  * TC358743) plugged into the CSI1 connector instead of CSI0.
- * Select it from the extlinux boot menu ("hdmirx-csi1" entry).
+ * Boot it with "default hdmirx-csi1" in /boot/extlinux/extlinux.conf (the
+ * U-Boot menu cannot be reached on this board).
  */
 
 /dts-v1/;

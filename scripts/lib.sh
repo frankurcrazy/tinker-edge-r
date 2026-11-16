@@ -73,7 +73,11 @@ build_builder_image() {
 
 stage_banner() { log "==== $* ===="; }
 
-# Verify that every "CONFIG_X=y|m" line in the given fragment files is present in .config.
+# Verify every "CONFIG_X=y|m" and "# CONFIG_X is not set" line of the given
+# fragment files against .config.  "=m" must stay a module: the Wi-Fi stack and
+# the Bluetooth USB drivers are modules on purpose (built in, they probe before
+# the root filesystem is mounted and never find their firmware), and something
+# that selects them built in must fail the build, not slip through.
 check_config_fragments() {
     local config="$1"; shift
     local frag opt want missing=0
@@ -84,11 +88,16 @@ check_config_fragments() {
                     opt="${line%%=*}"; want="${line#*=}"
                     if [ "$want" = "y" ] || [ "$want" = "m" ]; then
                         if ! grep -qx "$opt=$want" "$config"; then
-                            # =m requested but built-in is acceptable
-                            if [ "$want" = "m" ] && grep -qx "$opt=y" "$config"; then continue; fi
-                            warn "$(basename "$frag"): $opt=$want not honoured (dependency missing?)"
+                            warn "$(basename "$frag"): $opt=$want not honoured, .config has: $(grep -E "^(# )?$opt[= ]" "$config" || echo 'nothing')"
                             missing=1
                         fi
+                    fi
+                    ;;
+                "# CONFIG_"*" is not set")
+                    opt="${line#\# }"; opt="${opt%% *}"
+                    if grep -qE "^$opt=(y|m)$" "$config"; then
+                        warn "$(basename "$frag"): $opt should be off, .config has: $(grep -E "^$opt=" "$config")"
+                        missing=1
                     fi
                     ;;
             esac

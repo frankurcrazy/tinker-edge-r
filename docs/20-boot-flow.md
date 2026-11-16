@@ -19,15 +19,23 @@
 the ASUS image, also reads `config.txt`/`cmdline.txt` from **partition 7** with
 `ext2load mmc 0:7` (`common/image-android.c`).  Our `boot` partition holds an ext4
 filesystem, so the Android header check fails, `bootrkp` finds no `kernel`/`resource`
-partitions, and `run distro_bootcmd` takes over.  Because the microSD (`mmc 1`) is
-scanned first, an SD card with this image boots even when the eMMC still has the ASUS
-system, provided the eMMC's U-Boot is used (the boot ROM prefers eMMC): the ASUS
-U-Boot on the eMMC will run our SD card's extlinux entry.  To boot fully from the SD
-card's own U-Boot the eMMC must not contain a valid loader (see [80-flashing.md](80-flashing.md)).
+partitions, and `run distro_bootcmd` takes over.
 
-`RKIMG_DET_BOOTDEV` in `rockchip-common.h` sets `devtype/devnum` for the Android path
-(`rkimgtest mmc 1` succeeds only for Rockchip-style SD images), which does not affect
-the distro scan order.
+The boot ROM prefers the eMMC, so on a board that still has ASUS's system on the eMMC
+it is the eMMC's loader and U-Boot that run, and they decide which medium to boot:
+
+* `RKIMG_DET_BOOTDEV` (`rockchip-common.h`) runs `rkimgtest mmc 1`, which succeeds when
+  the microSD has a Rockchip loader header (magic `0xFCDC8C3B`) at **sector 64**, as
+  this image does.  `devtype/devnum` then point at the card, `boot_android` and
+  `bootrkp` fail on it, and distro boot runs this card's extlinux entry.
+* Without that header (a card written without the loader area, or with sector 64
+  cleared) `devnum` stays at the eMMC and `bootrkp` boots ASUS's system from it,
+  card or no card.  Clearing and restoring the card's sector 64 from a running system
+  therefore switches between the two without touching the card (verified on the
+  board, 2026-11-16).
+
+To boot fully from the SD card's own U-Boot the eMMC must not contain a valid loader
+(see [80-flashing.md](80-flashing.md)).
 
 ### U-Boot environment
 
@@ -40,40 +48,63 @@ works (ASUS enabled it).
 
 | console | UART | pins | baud |
 |---|---|---|---|
-| U-Boot / miniloader | UART2 (`0xff1a0000`, `CONFIG_DEBUG_UART_BASE`) | UART2 is muxed on SDMMC data pins on the RK3399Pro; ASUS's config keeps U-Boot on it (not exposed on the 40-pin header) | 115200 |
+| U-Boot / miniloader | UART2 (`0xff1a0000`, `CONFIG_DEBUG_UART_BASE`) | not wired to any connector on this board, so U-Boot's output and its extlinux menu cannot be reached | 115200 |
+| kernel early console | UART2 (`earlycon=uart8250,mmio32,0xff1a0000`) | same UART as U-Boot: nothing to see, but harmless | 115200 |
 | kernel | UART0 through the Rockchip fiq debugger (`ttyFIQ0`) | 40-pin header pins 8 (TX) / 10 (RX), same as ASUS's Debian image | 115200 8N1 |
 | HDMI | `tty0` | framebuffer console | |
 | USB gadget | `ttyGS0` (ACM function) | Type-C port when a host is attached | any |
 
-`earlycon=uart8250,mmio32,0xff180000` prints the first kernel messages on UART0.
+`earlycon` must stay on UART2.  U-Boot sets that UART up; nothing before the kernel
+touches UART0, and the 8250 early console given no baud rate assumes the UART is
+already configured, so on UART0 its first character waits forever for a transmitter
+that never empties: the kernel hangs before printing anything.  That was why the first
+images did not boot.  UART0 shows the whole kernel log anyway once `ttyFIQ0` registers
+(the log buffer is replayed).
 
 ### Kernel command line
 
 Set by `extlinux.conf` (`configs/extlinux.conf.in`, `KERNEL_CMDLINE` in `board.env`):
 
 ```
-root=PARTUUID=<rootfs>  earlycon=uart8250,mmio32,0xff180000 console=ttyFIQ0,115200n8 console=tty0
-rw rootwait rootfstype=ext4 swiotlb=1 coherent_pool=1m cgroup_enable=memory
+root=PARTUUID=<rootfs>  earlycon=uart8250,mmio32,0xff1a0000 console=ttyFIQ0,115200n8 console=tty0
+rw rootwait rootfstype=ext4 swiotlb=1 coherent_pool=1m cgroup_enable=memory clk_ignore_unused
 ```
 
 `swiotlb=1 coherent_pool=1m` are the Rockchip defaults from `rk3399-linux.dtsi`.
-The `chosen/bootargs` in the DTB is overridden by U-Boot with the `append` line
-(Rockchip's U-Boot merges DTB and environment bootargs).
+`clk_ignore_unused` keeps clocks that no driver claims running: every boot on the
+board so far had it, and testing without it needs someone at the board in case it
+hangs (see [90-decisions.md](90-decisions.md)).
+
+The device tree must not carry `/chosen/bootargs`.  Rockchip's U-Boot merges it
+**over** the `append` line (`fdt_chosen()` calls `env_update_filter()`,
+`cmd/nvedit.c`): every DTB argument replaces the environment argument with the same
+key, so the DTB wins.  `rk3399-linux.dtsi` sets `earlycon` there, and once the Tinker
+DTS pointed it at UART0, no `append` line could fix the hang.  The Tinker DTS deletes
+the property, so the command line is the `append` line alone.
 
 ### extlinux menu
 
 ```
-default tinker-edge-r          HDMI-RX board on CSI0 (default DTB)
-label hdmirx-csi1              HDMI-RX board on CSI1 (rk3399pro-tinker-edge-r-hdmirx-csi1.dtb)
+default tinker-edge-r          no HDMI-RX board (default DTB)
+label hdmirx-csi0              X1301 HDMI-RX board on CSI0 (rk3399pro-tinker-edge-r-hdmirx-csi0.dtb)
+label hdmirx-csi1              X1301 HDMI-RX board on CSI1 (rk3399pro-tinker-edge-r-hdmirx-csi1.dtb)
 label rescue                   systemd rescue target
 ```
 
-`timeout 30` (3 s) on the U-Boot console lets you pick an entry with the serial
-console attached; edit `/boot/extlinux/extlinux.conf` on the device to change the
-default or the command line.
+The U-Boot console is not reachable, so the menu cannot be used: edit `default` (or
+the command lines) in `/boot/extlinux/extlinux.conf` on the device.
 
 ### First boot
 
 `tinker-first-boot.service` grows the root partition to the size of the medium
 (`growpart` + `resize2fs`), regenerates SSH host keys and `/etc/machine-id`, and
-disables itself.  `npu-firmware.service` then loads the NPU (about 10-20 s).
+writes its stamp.  The kernel mounts the root as `/dev/root` without an initramfs, so
+the script finds the partition through the root mount's major:minor, and it tries again
+at the next boot if growing failed.  It is an ordinary service, started after udev and
+the local mounts and before `ssh.service`.  `growpart` runs `udevadm settle`: while the
+unit was ordered before `systemd-sysusers.service` (which udevd waits for), the settle
+sat out its 120 s timeout, `/boot`'s device job timed out first, and the first boot
+ended in emergency mode.
+`tinker-eth-mac.service` gives `eth0` the board's MAC address from the EEPROM before
+networkd starts (see [95-board-notes.md](95-board-notes.md)).
+`npu-firmware.service` then loads the NPU (about 10-20 s).

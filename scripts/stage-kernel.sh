@@ -14,6 +14,9 @@ require_src kernel
 K="$SRC/kernel"
 O="$OUT/kernel"
 B="$O/build"
+# start dtbs/ empty: the image stage ships every *.dtb in it, so a stale one from an
+# earlier build with a longer KERNEL_DTBS would hide a missing file
+rm -rf "$O/dtbs"
 mkdir -p "$B" "$O/dtbs"
 
 export ARCH=arm64

@@ -26,7 +26,9 @@ UB="$OUT/u-boot"; KO="$OUT/kernel"; RO="$OUT/rootfs/root"
 for f in "$UB/idbloader.img" "$UB/uboot.img" "$UB/trust.img" "$KO/Image" "$KO/kernel.release" "$RO/etc/os-release"; do
     [ -e "$f" ] || die "missing $f - run the uboot/kernel/rootfs stages first"
 done
-for t in sgdisk mke2fs uuidgen truncate; do command -v "$t" >/dev/null || die "missing tool: $t"; done
+for t in sgdisk mke2fs e2fsck resize2fs dumpe2fs uuidgen truncate; do
+    command -v "$t" >/dev/null || die "missing tool: $t"
+done
 
 REL="$(cat "$KO/kernel.release")"
 DATE="$(date -u +%Y%m%d)"
@@ -68,20 +70,40 @@ EOF
 
 # ---- filesystem images (no loop devices: mke2fs -d) --------------------------------
 BOOT_MB="$IMG_BOOT_SIZE_MB"
-if [ "${IMG_ROOTFS_SIZE_MB:-0}" -gt 0 ]; then
-    ROOT_MB="$IMG_ROOTFS_SIZE_MB"
-else
-    used_mb="$(du -sxm "$RO" | cut -f1)"
-    ROOT_MB=$(( (used_mb * 110 / 100 + IMG_ROOTFS_MARGIN_MB + 3) / 4 * 4 ))
-fi
-log "boot partition ${BOOT_MB} MiB, rootfs partition ${ROOT_MB} MiB (contents $(du -sxh "$RO" | cut -f1))"
-
 # Boot partition: keep the ext4 feature set conservative (no metadata_csum/64bit)
 # so the 2017.09 U-Boot ext4 reader handles it; the kernel does not care.
 mke2fs -F -q -t ext4 -L boot -O ^64bit,^metadata_csum,^huge_file \
        -E lazy_itable_init=0,lazy_journal_init=0 -d "$WORK/boot" "$WORK/boot.img" "${BOOT_MB}M"
-mke2fs -F -q -t ext4 -L rootfs -E lazy_itable_init=0,lazy_journal_init=0 \
-       -d "$RO" "$WORK/rootfs.img" "${ROOT_MB}M"
+
+mkrootfs_img() {
+    mke2fs -F -q -t ext4 -L rootfs -E lazy_itable_init=0,lazy_journal_init=0 \
+           -d "$RO" "$WORK/rootfs.img" "$1"
+}
+if [ "${IMG_ROOTFS_SIZE_MB:-0}" -gt 0 ]; then
+    ROOT_MB="$IMG_ROOTFS_SIZE_MB"
+    mkrootfs_img "${ROOT_MB}M"
+else
+    # du on the build host (ZFS with compression, btrfs, ...) does not say what
+    # the tree takes on ext4, so ask ext4: build the filesystem with room to
+    # spare, shrink it to its minimum, then grow it by IMG_ROOTFS_MARGIN_MB.
+    # The first boot grows it again to fill the card.
+    apparent_mb="$(du -sxm --apparent-size "$RO" | cut -f1)"
+    mkrootfs_img "$(( apparent_mb * 2 + 1024 ))M"
+    rc=0; e2fsck -fy "$WORK/rootfs.img" >/dev/null 2>&1 || rc=$?
+    [ "$rc" -le 1 ] || die "rootfs.img failed fsck before shrinking (e2fsck exit $rc)"
+    resize2fs -M "$WORK/rootfs.img" >/dev/null 2>&1 || die "resize2fs -M failed"
+    blocks="$(dumpe2fs -h "$WORK/rootfs.img" 2>/dev/null | awk -F: '/^Block count/ {print $2 + 0}')"
+    bsize="$(dumpe2fs -h "$WORK/rootfs.img" 2>/dev/null | awk -F: '/^Block size/ {print $2 + 0}')"
+    min_mb=$(( (blocks * bsize + 1048575) / 1048576 ))
+    ROOT_MB=$(( (min_mb + IMG_ROOTFS_MARGIN_MB + 3) / 4 * 4 ))
+    truncate -s "${ROOT_MB}M" "$WORK/rootfs.img"
+    resize2fs "$WORK/rootfs.img" >/dev/null 2>&1 || die "resize2fs to ${ROOT_MB} MiB failed"
+    # resize2fs -M's minimum is an estimate with slack (flex_bg metadata), so
+    # the free space ends up above the margin; log what it really is.
+    free_blocks="$(dumpe2fs -h "$WORK/rootfs.img" 2>/dev/null | awk -F: '/^Free blocks/ {print $2 + 0}')"
+    log "rootfs: ${apparent_mb} MiB of files, resize2fs minimum ${min_mb} MiB + ${IMG_ROOTFS_MARGIN_MB} MiB margin: $(( free_blocks * bsize / 1048576 )) MiB free"
+fi
+log "boot partition ${BOOT_MB} MiB, rootfs partition ${ROOT_MB} MiB"
 e2fsck -fn "$WORK/boot.img" >/dev/null || die "boot.img failed fsck"
 e2fsck -fn "$WORK/rootfs.img" >/dev/null || die "rootfs.img failed fsck"
 
