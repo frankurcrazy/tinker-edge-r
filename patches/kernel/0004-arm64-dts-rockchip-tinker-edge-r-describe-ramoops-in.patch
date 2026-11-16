@@ -1,0 +1,43 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Frank Chang <frank.aka.hao.hao@gmail.com>
+Date: Mon, 16 Nov 2026 11:30:14 +0000
+Subject: [PATCH 4/8] arm64: dts: rockchip: tinker-edge-r: describe ramoops in
+ /reserved-memory
+
+rk3399-linux.dtsi links a top-level ramoops node to its region through memory-region, which this kernel's ramoops driver does not read (the probe fails with 'failed to locate DT /reserved-memory resource'), and gives the sizes as two cells where the driver reads one. Replace both with an upstream-style ramoops child of /reserved-memory over the same 960 KiB at 0x110000.
+---
+ .../dts/rockchip/rk3399pro-tinker-edge-r.dtsi | 21 +++++++++++++++++++
+ 1 file changed, 21 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi b/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi
+index c65c4562a..4d29ad205 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi
+@@ -34,6 +34,27 @@
+ /* No U-Boot logo hand-over on this image (see Toybrick prod-linux). */
+ /delete-node/ &drm_logo;
+ 
++/*
++ * pstore/ramoops.  rk3399-linux.dtsi points a top-level "ramoops" node at a
++ * reserved region through memory-region, which this kernel's ramoops driver
++ * does not support ("failed to locate DT /reserved-memory resource"), and
++ * gives its sizes as two cells where the driver reads one.  Describe the same
++ * region the upstream way: a "ramoops" child of /reserved-memory.
++ */
++/delete-node/ &ramoops;
++/delete-node/ &ramoops_mem;
++
++&{/reserved-memory} {
++	ramoops@110000 {
++		compatible = "ramoops";
++		reg = <0x0 0x110000 0x0 0xf0000>;
++		record-size = <0x40000>;
++		console-size = <0x80000>;
++		ftrace-size = <0x0>;
++		pmsg-size = <0x0>;
++	};
++};
++
+ / {
+ 	model = "ASUS Tinker Edge R";
+ 	compatible = "asus,tinker-edge-r", "rockchip,rk3399pro-tinker-edge-r",

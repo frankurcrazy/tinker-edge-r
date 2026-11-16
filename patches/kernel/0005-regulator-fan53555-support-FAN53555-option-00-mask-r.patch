@@ -1,0 +1,40 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Frank Chang <frank.aka.hao.hao@gmail.com>
+Date: Mon, 16 Nov 2026 11:30:15 +0000
+Subject: [PATCH 5/8] regulator: fan53555: support FAN53555 option 00 mask
+ revision 12
+
+The Tinker Edge R's VDD_CPU_B and VDD_GPU regulators report option 0, revision 12 and fail to probe ('Chip ID 0 with rev 12 not supported!'). Without vdd_cpu_b the Rockchip cpufreq driver gives up on both clusters, and the GPU loses its supply. Add the revision with the 600 mV base and 12.5 mV step that ASUS's 4.4 kernel (TinkerEdgeR/debian-kernel) uses on this board.
+---
+ drivers/regulator/fan53555.c | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/drivers/regulator/fan53555.c b/drivers/regulator/fan53555.c
+index e9db8598c..7c187c6de 100644
+--- a/drivers/regulator/fan53555.c
++++ b/drivers/regulator/fan53555.c
+@@ -102,6 +102,7 @@ enum {
+ enum {
+ 	FAN53555_CHIP_REV_00 = 0x3,
+ 	FAN53555_CHIP_REV_13 = 0xf,
++	FAN53555_CHIP_REV_23 = 0xc,
+ };
+ 
+ enum {
+@@ -297,6 +298,16 @@ static int fan53555_voltages_setup_fairchild(struct fan53555_device_info *di)
+ 			di->vsel_min = 800000;
+ 			di->vsel_step = 10000;
+ 			break;
++		case FAN53555_CHIP_REV_23:
++			/*
++			 * Option 00, mask revision 12: VDD_CPU_B and VDD_GPU on
++			 * the ASUS Tinker Edge R.  600 mV + 12.5 mV per step, as
++			 * in ASUS's 4.4 kernel (TinkerEdgeR/debian-kernel), which
++			 * runs this board.
++			 */
++			di->vsel_min = 600000;
++			di->vsel_step = 12500;
++			break;
+ 		default:
+ 			dev_err(di->dev,
+ 				"Chip ID %d with rev %d not supported!\n",

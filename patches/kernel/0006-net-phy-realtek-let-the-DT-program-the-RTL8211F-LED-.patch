@@ -1,0 +1,122 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Frank Chang <frank.aka.hao.hao@gmail.com>
+Date: Mon, 16 Nov 2026 12:32:51 +0000
+Subject: [PATCH 6/8] net: phy: realtek: let the DT program the RTL8211F LED
+ registers
+
+Boards wire the RTL8211F's three LED pins to their jacks differently, and
+the PHY reset at probe returns the LED control register (LCR, page 0xd04
+reg 0x10) and the EEE LED control register (EEELCR, reg 0x11) to their
+reset values, undoing whatever the bootloader set up.
+
+Add two optional PHY node properties, applied in config_init so they
+survive every PHY reset:
+  realtek,led-config = <LCR value>;   16-bit LCR value
+  realtek,eee-led-disable;             clear EEELCR
+---
+ drivers/net/phy/realtek.c | 57 +++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 57 insertions(+)
+
+diff --git a/drivers/net/phy/realtek.c b/drivers/net/phy/realtek.c
+index 6582d331e..a26766dbe 100644
+--- a/drivers/net/phy/realtek.c
++++ b/drivers/net/phy/realtek.c
+@@ -44,6 +44,10 @@
+ 
+ #define RTL8211F_CLKOUT_EN			BIT(0)
+ 
++#define RTL8211F_LED_PAGE			0xd04
++#define RTL8211F_LEDCR				0x10
++#define RTL8211F_EEELCR				0x11
++
+ #define RTL8201F_ISR				0x1e
+ #define RTL8201F_ISR_ANERR			BIT(15)
+ #define RTL8201F_ISR_DUPLEX			BIT(13)
+@@ -80,6 +84,9 @@ struct rtl821x_priv {
+ 	u16 phycr1;
+ 	u16 phycr2;
+ 	bool has_phycr2;
++	u16 ledcr;
++	bool has_ledcr;
++	bool eee_led_disable;
+ };
+ 
+ static int rtl821x_read_page(struct phy_device *phydev)
+@@ -97,6 +104,7 @@ static int rtl821x_probe(struct phy_device *phydev)
+ 	struct device *dev = &phydev->mdio.dev;
+ 	struct rtl821x_priv *priv;
+ 	u32 phy_id = phydev->drv->phy_id;
++	u32 ledcr;
+ 	int ret;
+ 
+ 	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
+@@ -122,6 +130,25 @@ static int rtl821x_probe(struct phy_device *phydev)
+ 			priv->phycr2 &= ~RTL8211F_CLKOUT_EN;
+ 	}
+ 
++	/*
++	 * Board LED wiring.  "realtek,led-config" is the LED control register
++	 * (LCR, page 0xd04 reg 0x10) value, "realtek,eee-led-disable" clears
++	 * the EEE LED control register (EEELCR, page 0xd04 reg 0x11).  Without
++	 * them both registers keep their reset values: the PHY reset at probe
++	 * undoes whatever the bootloader programmed.
++	 */
++	if (!of_property_read_u32(dev->of_node, "realtek,led-config", &ledcr)) {
++		if (ledcr > 0xffff) {
++			dev_warn(dev, "realtek,led-config 0x%x is not a 16-bit value, ignored\n",
++				 ledcr);
++		} else {
++			priv->ledcr = ledcr;
++			priv->has_ledcr = true;
++		}
++	}
++	priv->eee_led_disable = of_property_read_bool(dev->of_node,
++						      "realtek,eee-led-disable");
++
+ 	phydev->priv = priv;
+ 
+ 	return 0;
+@@ -335,6 +362,27 @@ static int rtl8211c_config_init(struct phy_device *phydev)
+ 			    CTL1000_ENABLE_MASTER | CTL1000_AS_MASTER);
+ }
+ 
++static int rtl8211f_config_leds(struct phy_device *phydev)
++{
++	struct rtl821x_priv *priv = phydev->priv;
++	int oldpage, ret = 0;
++
++	oldpage = phy_select_page(phydev, RTL8211F_LED_PAGE);
++	if (oldpage < 0)
++		goto err_restore_page;
++
++	if (priv->eee_led_disable) {
++		ret = __phy_write(phydev, RTL8211F_EEELCR, 0);
++		if (ret)
++			goto err_restore_page;
++	}
++	if (priv->has_ledcr)
++		ret = __phy_write(phydev, RTL8211F_LEDCR, priv->ledcr);
++
++err_restore_page:
++	return phy_restore_page(phydev, oldpage, ret);
++}
++
+ static int rtl8211f_config_init(struct phy_device *phydev)
+ {
+ 	struct rtl821x_priv *priv = phydev->priv;
+@@ -351,6 +399,15 @@ static int rtl8211f_config_init(struct phy_device *phydev)
+ 		return ret;
+ 	}
+ 
++	if (priv->has_ledcr || priv->eee_led_disable) {
++		ret = rtl8211f_config_leds(phydev);
++		if (ret < 0) {
++			dev_err(dev, "LED configuration failed: %pe\n",
++				ERR_PTR(ret));
++			return ret;
++		}
++	}
++
+ 	switch (phydev->interface) {
+ 	case PHY_INTERFACE_MODE_RGMII:
+ 		val_txdly = 0;

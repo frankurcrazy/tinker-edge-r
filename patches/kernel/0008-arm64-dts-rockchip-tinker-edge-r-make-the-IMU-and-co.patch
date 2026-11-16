@@ -1,0 +1,46 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Frank Chang <frank.aka.hao.hao@gmail.com>
+Date: Mon, 16 Nov 2026 12:48:21 +0000
+Subject: [PATCH 8/8] arm64: dts: rockchip: tinker-edge-r: make the IMU and
+ compass opt-in
+
+ASUS's DTS has an MPU6500 at I2C1 0x68 and an AK8963 at 0x0d, but on the
+boards checked nothing answers at either address, under the stock 4.4
+image or this kernel (i2cdetect: only the 24C08 EEPROM at 0x50-0x53).  The
+ak8975 driver logged "Error reading WIA" / "Unexpected device" at every
+boot.  Disable both nodes; a board that has them sets them to "okay".
+---
+ arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi b/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi
+index b2697867d..addeaa61f 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi
+@@ -773,6 +773,12 @@ &i2c1 {
+ 	i2c-scl-rising-time-ns = <140>;
+ 	i2c-scl-falling-time-ns = <30>;
+ 
++	/*
++	 * ASUS's DTS lists an MPU6500 IMU and an AK8963 compass here, but on
++	 * the boards checked nothing answers at 0x68 or 0x0d, under the stock
++	 * 4.4 image or this kernel; only the EEPROM does.  Set these to "okay"
++	 * on a board that has them.
++	 */
+ 	mpu6500@68 {
+ 		compatible = "invensense,mpu6500";
+ 		reg = <0x68>;
+@@ -781,11 +787,13 @@ mpu6500@68 {
+ 		mount-matrix = "0", "1", "0",
+ 			       "1", "0", "0",
+ 			       "0", "0", "1";
++		status = "disabled";
+ 	};
+ 
+ 	ak8963@d {
+ 		compatible = "asahi-kasei,ak8963";
+ 		reg = <0x0d>;
++		status = "disabled";
+ 		interrupt-parent = <&gpio3>;
+ 		interrupts = <RK_PD7 IRQ_TYPE_EDGE_RISING>;
+ 	};

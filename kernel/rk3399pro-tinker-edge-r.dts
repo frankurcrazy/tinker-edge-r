@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
- * ASUS Tinker Edge R - default configuration:
- *   HDMI-RX (Geekworm X1301, TC358743) on the CSI0 connector, CSI1 idle.
+ * ASUS Tinker Edge R - default configuration: no HDMI-RX board.
+ * The Geekworm X1301 (TC358743) is optional; boot the -hdmirx-csi0 or
+ * -hdmirx-csi1 variant (extlinux entries of the same names) when it is
+ * plugged into the CSI0 or CSI1 connector.
  */
 
 /dts-v1/;
