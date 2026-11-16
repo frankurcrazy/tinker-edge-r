@@ -1,0 +1,39 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Frank Chang <frank.aka.hao.hao@gmail.com>
+Date: Mon, 16 Nov 2026 13:28:24 +0000
+Subject: [PATCH 10/11] arm64: dts: rockchip: tinker-edge-r: add the cpuinfo
+ node for the SoC serial
+
+/proc/cpuinfo showed "Serial: 0000000000000000" and /proc/device-tree has
+no serial-number under extlinux boot (ASUS's U-Boot only adds it on the
+Android boot path), so nothing on the board had a stable per-board ID.
+rk3399.dtsi defines the eFuse cpu-id cell but no rockchip,cpuinfo node;
+with one, the driver mixes the 16-byte CPU ID the way Rockchip's U-Boot
+derives serial#, which reproduces the board's stock serial number
+(96bb2a439d8ef209 on the board checked).
+---
+ .../boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi    | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi b/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi
+index 73aab9014..1e56a6473 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi
+@@ -192,6 +192,17 @@ simple-audio-card,codec {
+ 		};
+ 	};
+ 
++	/*
++	 * The SoC serial number (/proc/cpuinfo "Serial") from the eFuse CPU ID,
++	 * mixed the way Rockchip's U-Boot derives serial# - the board's stock
++	 * serial number.  rk3399.dtsi has the cell but no cpuinfo node.
++	 */
++	cpuinfo {
++		compatible = "rockchip,cpuinfo";
++		nvmem-cells = <&cpu_id>;
++		nvmem-cell-names = "id";
++	};
++
+ 	rk_headset {
+ 		compatible = "rockchip_headset";
+ 		headset_gpio = <&gpio0 RK_PB5 GPIO_ACTIVE_HIGH>;

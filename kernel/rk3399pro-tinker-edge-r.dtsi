@@ -179,9 +179,10 @@
 		simple-audio-card,mclk-fs = <256>;
 		/*
 		 * No widgets/routing: this tree's rk817 codec driver has no DAPM
-		 * widgets (it switches paths through its own controls), so the
-		 * MICBIAS1/IN1P/HPOL/HPOR routes ASUS's DTS carries could never be
-		 * added and only logged errors at every boot.
+		 * widgets (it switches paths through its own controls).  With the
+		 * MICBIAS1/IN1P/HPOL/HPOR routes ASUS's DTS carries, adding them
+		 * failed with -ENODEV and the whole card was torn down: no analog
+		 * audio card at all.  Do not add routes back.
 		 */
 
 		simple-audio-card,cpu {
@@ -190,6 +191,17 @@
 		simple-audio-card,codec {
 			sound-dai = <&rk809_codec>;
 		};
+	};
+
+	/*
+	 * The SoC serial number (/proc/cpuinfo "Serial") from the eFuse CPU ID,
+	 * mixed the way Rockchip's U-Boot derives serial# - the board's stock
+	 * serial number.  rk3399.dtsi has the cell but no cpuinfo node.
+	 */
+	cpuinfo {
+		compatible = "rockchip,cpuinfo";
+		nvmem-cells = <&cpu_id>;
+		nvmem-cell-names = "id";
 	};
 
 	rk_headset {

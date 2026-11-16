@@ -1,0 +1,64 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Frank Chang <frank.aka.hao.hao@gmail.com>
+Date: Mon, 16 Nov 2026 13:28:24 +0000
+Subject: [PATCH 11/11] arm64: dts: rockchip: tinker-edge-r: correct two
+ comments
+
+The rk809 card comment undersold the route removal: in this tree a route
+to a missing widget fails with -ENODEV and tears the whole card down, so
+before it there was no analog audio card at all (now
+"rockchip,rk809" registers).  The -hdmirx-csi0/-csi1 headers pointed at
+the extlinux menu, which cannot be reached on this board; boot them by
+setting "default" instead.
+---
+ .../dts/rockchip/rk3399pro-tinker-edge-r-hdmirx-csi0.dts   | 3 ++-
+ .../dts/rockchip/rk3399pro-tinker-edge-r-hdmirx-csi1.dts   | 3 ++-
+ arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi  | 7 ++++---
+ 3 files changed, 8 insertions(+), 5 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r-hdmirx-csi0.dts b/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r-hdmirx-csi0.dts
+index 0c7784ef9..f2541e005 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r-hdmirx-csi0.dts
++++ b/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r-hdmirx-csi0.dts
+@@ -2,7 +2,8 @@
+ /*
+  * ASUS Tinker Edge R - variant with the HDMI-RX board (Geekworm X1301,
+  * TC358743) plugged into the CSI0 connector.
+- * Select it from the extlinux boot menu ("hdmirx-csi0" entry).
++ * Boot it with "default hdmirx-csi0" in /boot/extlinux/extlinux.conf (the
++ * U-Boot menu cannot be reached on this board).
+  */
+ 
+ /dts-v1/;
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r-hdmirx-csi1.dts b/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r-hdmirx-csi1.dts
+index 2f156bf5a..ea43a0406 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r-hdmirx-csi1.dts
++++ b/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r-hdmirx-csi1.dts
+@@ -2,7 +2,8 @@
+ /*
+  * ASUS Tinker Edge R - variant with the HDMI-RX board (Geekworm X1301,
+  * TC358743) plugged into the CSI1 connector instead of CSI0.
+- * Select it from the extlinux boot menu ("hdmirx-csi1" entry).
++ * Boot it with "default hdmirx-csi1" in /boot/extlinux/extlinux.conf (the
++ * U-Boot menu cannot be reached on this board).
+  */
+ 
+ /dts-v1/;
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi b/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi
+index 1e56a6473..b9cdd9992 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3399pro-tinker-edge-r.dtsi
+@@ -179,9 +179,10 @@ rk809-sound {
+ 		simple-audio-card,mclk-fs = <256>;
+ 		/*
+ 		 * No widgets/routing: this tree's rk817 codec driver has no DAPM
+-		 * widgets (it switches paths through its own controls), so the
+-		 * MICBIAS1/IN1P/HPOL/HPOR routes ASUS's DTS carries could never be
+-		 * added and only logged errors at every boot.
++		 * widgets (it switches paths through its own controls).  With the
++		 * MICBIAS1/IN1P/HPOL/HPOR routes ASUS's DTS carries, adding them
++		 * failed with -ENODEV and the whole card was torn down: no analog
++		 * audio card at all.  Do not add routes back.
+ 		 */
+ 
+ 		simple-audio-card,cpu {
