@@ -82,7 +82,7 @@ waits for it (`usb0` is configured by networkd whenever it appears).
 Stop the configfs gadget first, then load one module:
 
 ```sh
-systemctl stop usb-gadget
+systemctl mask --runtime --now usb-gadget     # plain 'mask' to keep it off across reboots
 modprobe g_mass_storage file=/path/to/disk.img removable=1
 # or: modprobe g_serial | g_ether | g_multi | g_hid | g_midi | g_audio ...
 ```

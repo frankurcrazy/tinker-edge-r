@@ -28,4 +28,4 @@ label rescue
     menu label Ubuntu 22.04 (single user, no NPU/gadget services)
     kernel /Image
     fdt /dtbs/@DEFAULT_DTB@
-    append root=PARTUUID=@ROOT_PARTUUID@ @CMDLINE@ systemd.unit=rescue.target
+    append root=PARTUUID=@ROOT_PARTUUID@ @CMDLINE@ systemd.unit=rescue.target systemd.mask=usb-gadget.service
