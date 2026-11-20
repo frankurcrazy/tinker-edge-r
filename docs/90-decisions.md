@@ -40,9 +40,10 @@ microSD through the eMMC's loader and U-Boot:
   at the stock OPP voltages, the little one up to 1.416 GHz; GPU devfreq; ramoops
 * PCIe Wi-Fi: `rtw88_8822ce` loads its firmware and `wlp1s0` appears; Bluetooth: `hci0`
   with its firmware, `bluetoothd` running
-* VPU through `/dev/mpp_service` (VDPU2, VEPU2, RKVDEC), RGA, IEP: with MPP and the
-  `rockchipmpp` GStreamer plugin installed, H.264 encode/decode and JPEG decode work,
-  including from a USB HDMI capture stick (MS2130); the image itself does not ship MPP
+* VPU through `/dev/mpp_service` (VDPU2, VEPU2, RKVDEC), RGA, IEP. The image ships MPP
+  (48962a10) and librga 1.10.0. Once a `rockchipmpp` GStreamer plugin is built on the
+  board against them, H.264 encode/decode and JPEG decode work, including from a USB
+  HDMI capture stick (MS2130). The image ships no plugin.
 
 ## Risks / not yet verified on hardware
 
