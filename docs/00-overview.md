@@ -11,7 +11,7 @@ that keeps the board's special hardware usable:
 | Type-C device class + full USB gadget | TCPM + FUSB302 + dwc3 dual role + orientation switch in the device tree; every gadget function enabled; a configfs gadget service ([60-usb-gadget-typec.md](60-usb-gadget-typec.md)) |
 | dual-role switch for dwc3 and FUSB302 | `usb-role-switch` graph between the FUSB302 connector and `usbdrd_dwc3_0` ([40-kernel-port.md](40-kernel-port.md)) |
 | Geekworm X1301 HDMI RX (optional) | TC358743 node on CSI0 or CSI1, enabled by the matching DTB / extlinux entry, vendor rkisp1 pipeline, EDID + setup helper ([70-hdmi-rx.md](70-hdmi-rx.md)) |
-| separate repositories | `repo` manifest in this repository ties kernel, U-Boot, rootfs, Rockchip blobs and NPU userspace together at pinned revisions |
+| separate repositories | `repo` manifest in this repository ties kernel, U-Boot, rootfs, Rockchip blobs, NPU userspace and the codec libraries together at pinned revisions |
 | container build | every stage runs in `docker/Dockerfile`'s image; only `git`/`repo`/`docker` are needed on the host |
 | documentation | this `docs/` tree, also installed on the device |
 
@@ -27,7 +27,7 @@ tinker-edge-r/                 <- this repository = workspace root
 ├── kernel/                    staging copy of the Tinker Edge R DTS (canonical copy: kernel branch)
 ├── patches/                   the same changes as patches (kernel DTS, U-Boot make 4.3 fix)
 ├── docs/                      this documentation
-└── src/  (after fetch)        kernel/ u-boot/ rkbin/ npu/ rootfs/ [kernel-legacy/]   (git-ignored)
+└── src/  (after fetch)        kernel/ u-boot/ rkbin/ npu/ mpp/ rga/ rootfs/ [kernel-legacy/]   (git-ignored)
     out/ (after build)         u-boot/ kernel/ rootfs/ images/                          (git-ignored)
 ```
 
@@ -37,6 +37,8 @@ tinker-edge-r/                 <- this repository = workspace root
 | `src/u-boot` | `frankurcrazy/tinker-edge-r-debian-u-boot`, branch `tinker-edge-r` | ASUS's bootloader, used as-is plus one build fix |
 | `src/rkbin` | `rockchip-linux/rkbin` | Rockchip's binary blobs (DDR init, miniloader, BL31, OP-TEE) and packing tools |
 | `src/npu` | `airockchip/RK3399Pro_npu` | NPU firmware (USB set), `npu_transfer_proxy`, `librknn_api`, docs |
+| `src/mpp` | `rockchip-linux/mpp`, branch `develop` | the hardware codec's userspace (MPP), built inside the rootfs |
+| `src/rga` | `airockchip/librga` (tag `v1.10.0`) | Rockchip's prebuilt RGA library and headers |
 | `src/rootfs` | `frankurcrazy/tinker-edge-r-rootfs` | everything that describes the userspace: package lists, overlay, services, vendored NPU tools |
 | `src/kernel-legacy` (group `legacy`, not synced by default) | `frankurcrazy/tinker-edge-r-debian-kernel` | ASUS's original 4.4 kernel, kept only as reference |
 
@@ -51,7 +53,7 @@ revisions in `default.xml` (see [10-build.md](10-build.md)).
 ```
  src/u-boot + src/rkbin ──stage-uboot──▶ out/u-boot/{idbloader.img,uboot.img,trust.img,rk3399pro_loader_*.bin}
  src/kernel + configs/kernel/*.config ──stage-kernel──▶ out/kernel/{Image,dtbs/,modules/}
- src/rootfs + out/kernel + src/npu ──stage-rootfs (privileged)──▶ out/rootfs/root/
+ src/rootfs + out/kernel + src/{npu,mpp,rga} ──stage-rootfs (privileged)──▶ out/rootfs/root/
  all of the above + configs/extlinux.conf.in ──stage-image (privileged)──▶ out/images/<name>.img.xz
 ```
 

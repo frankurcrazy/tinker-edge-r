@@ -22,13 +22,14 @@ The work is split across repositories (see [docs/00-overview.md](docs/00-overvie
 | [tinker-edge-r-debian-u-boot](https://github.com/frankurcrazy/tinker-edge-r-debian-u-boot) `tinker-edge-r` | ASUS U-Boot 2017.09 (+ one build fix) |
 | [tinker-edge-r-rootfs](https://github.com/frankurcrazy/tinker-edge-r-rootfs) | Ubuntu rootfs builder, NPU/gadget/HDMI-RX integration |
 | [rockchip-linux/rkbin](https://github.com/rockchip-linux/rkbin), [airockchip/RK3399Pro_npu](https://github.com/airockchip/RK3399Pro_npu) | Rockchip blobs and NPU firmware/userspace (pinned) |
+| [rockchip-linux/mpp](https://github.com/rockchip-linux/mpp), [airockchip/librga](https://github.com/airockchip/librga) | hardware codec (MPP) and RGA userspace (pinned) |
 
 ## Quick start
 
 ```sh
 git clone https://github.com/frankurcrazy/tinker-edge-r && cd tinker-edge-r
 ./build.sh builder      # docker image (Ubuntu 22.04 + cross toolchains + debootstrap)
-./build.sh fetch        # repo init/sync -> src/{kernel,u-boot,rkbin,npu,rootfs}
+./build.sh fetch        # repo init/sync -> src/{kernel,u-boot,rkbin,npu,mpp,rga,rootfs}
 ./build.sh all          # uboot -> kernel -> rootfs -> image -> verify  (out/images/*.img.xz)
 ```
 

@@ -4,7 +4,7 @@
 # execute through the host's binfmt_misc qemu-aarch64 registration).
 #
 # The heavy lifting lives in the separate rootfs repository (src/rootfs); this
-# stage only wires the build-repo configuration and the kernel/NPU artefacts into it.
+# stage only wires the build-repo configuration and the kernel/NPU/MPP/librga sources into it.
 #
 # Outputs (out/rootfs/):
 #   root/               the populated root filesystem tree (root-owned)
@@ -12,7 +12,7 @@
 # shellcheck source=lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-require_src rootfs npu
+require_src rootfs npu mpp rga
 [ "$(id -u)" = 0 ] || die "the rootfs stage must run as root (./build.sh rootfs uses --privileged)"
 [ -f "$OUT/kernel/kernel.release" ] || die "kernel not built yet (./build.sh kernel)"
 
@@ -22,6 +22,7 @@ exec "$SRC/rootfs/mkrootfs.sh" \
     --out "$OUT/rootfs" \
     --kernel-out "$OUT/kernel" \
     --npu-src "$SRC/npu" \
+    --mpp-src "$SRC/mpp" --rga-src "$SRC/rga" \
     --hostname "$ROOTFS_HOSTNAME" --user "$ROOTFS_USER" --password "$ROOTFS_PASSWORD" \
     --timezone "$ROOTFS_TIMEZONE" --locale "$ROOTFS_LOCALE" \
     --extra-packages "$ROOTFS_EXTRA_PACKAGES" \

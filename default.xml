@@ -49,10 +49,25 @@
            upstream="main"
            clone-depth="1" />
 
+  <!-- Rockchip MPP (the hardware codec's userspace), built inside the rootfs.  48962a10 is
+       the commit the board's H.264 encode / JPEG and H.264 decode measurements used. -->
+  <project name="rockchip-linux/mpp"
+           path="src/mpp"
+           revision="48962a107a5a1e341e530a701ecd93872893d184"
+           upstream="develop"
+           clone-depth="1" />
+
+  <!-- Rockchip librga 1.10.0 (RGA 2D acceleration), installed as Rockchip's prebuilt library. -->
+  <project name="airockchip/librga"
+           path="src/rga"
+           revision="fb3357d09008222bc5e27bdaadf74a0c5ea4c86e"
+           upstream="main"
+           clone-depth="1" />
+
   <!-- Root filesystem builder (debootstrap + overlays + NPU/gadget/HDMI-RX integration). -->
   <project name="frankurcrazy/tinker-edge-r-rootfs"
            path="src/rootfs"
-           revision="b7c0562d31e8100bfd07ba965cb96d594b9d8ae9"
+           revision="13840a978bfba1d8e9d72407be4739ab5ceebb99"
            upstream="main" />
 
   <!-- Optional: ASUS's original 4.4 kernel, only synced with `repo init -g legacy` (reference / fallback). -->

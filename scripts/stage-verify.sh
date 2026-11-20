@@ -93,6 +93,17 @@ check 'rfls /usr/share/npu_fw | grep -q boot.img' "NPU firmware set in /usr/shar
 for f in /usr/bin/npu_transfer_proxy /usr/bin/upgrade_tool /usr/bin/npu_powerctrl /usr/bin/npu_upgrade /usr/lib/aarch64-linux-gnu/librknn_api.so /usr/include/rknn_api.h /usr/local/sbin/npu-firmware-load /usr/local/sbin/usb-gadget-setup /usr/local/sbin/hdmirx-setup /usr/local/sbin/tinker-first-boot /usr/share/hdmirx/edid-1080p30.bin /etc/default/usb-gadget /etc/systemd/network/20-usb-gadget.network; do
     check 'rfexists $f' "$f"
 done
+# media userspace: MPP + librga for the hardware codec, GStreamer from Python; no plugin
+L=/usr/lib/aarch64-linux-gnu
+for f in $L/librockchip_mpp.so.1 $L/librockchip_vpu.so.1 $L/librga.so $L/pkgconfig/rockchip_mpp.pc $L/pkgconfig/librga.pc \
+         /usr/include/rockchip/rk_mpi.h /usr/include/rga/RgaApi.h /usr/bin/mpi_enc_test /usr/bin/mpp_info_test \
+         $L/girepository-1.0/Gst-1.0.typelib $L/girepository-1.0/GstVideo-1.0.typelib /usr/lib/python3/dist-packages/gi/__init__.py \
+         /etc/udev/rules.d/60-rockchip-media.rules /usr/share/doc/tinker-edge-r/media-provenance.md; do
+    check 'rfexists $f' "$f"
+done
+check 'rf $L/pkgconfig/librga.pc | grep -q "^Version: [0-9]"' "librga.pc carries a version"
+check '! rfexists $L/librockchip_mpp.a' "no static MPP library"
+check '! rfls $L/gstreamer-1.0 | grep -q rockchipmpp' "no rockchipmpp plugin (built on the board)"
 for u in npu-firmware.service npu-transfer-proxy.service tinker-first-boot.service tinker-eth-mac.service ssh.service systemd-networkd.service; do
     check 'rfls /etc/systemd/system/multi-user.target.wants | grep -qx $u' "enabled: $u"
 done
