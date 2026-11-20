@@ -67,7 +67,7 @@
   <!-- Root filesystem builder (debootstrap + overlays + NPU/gadget/HDMI-RX integration). -->
   <project name="frankurcrazy/tinker-edge-r-rootfs"
            path="src/rootfs"
-           revision="0d633f449866a6cd6a4b7c8be370b11ad3bc55a8"
+           revision="13840a978bfba1d8e9d72407be4739ab5ceebb99"
            upstream="main" />
 
   <!-- Optional: ASUS's original 4.4 kernel, only synced with `repo init -g legacy` (reference / fallback). -->

@@ -40,10 +40,10 @@ microSD through the eMMC's loader and U-Boot:
   at the stock OPP voltages, the little one up to 1.416 GHz; GPU devfreq; ramoops
 * PCIe Wi-Fi: `rtw88_8822ce` loads its firmware and `wlp1s0` appears; Bluetooth: `hci0`
   with its firmware, `bluetoothd` running
-* VPU through `/dev/mpp_service` (VDPU2, VEPU2, RKVDEC), RGA, IEP. The image ships MPP
-  (48962a10) and librga 1.10.0. Once a `rockchipmpp` GStreamer plugin is built on the
-  board against them, H.264 encode/decode and JPEG decode work, including from a USB
-  HDMI capture stick (MS2130). The image ships no plugin.
+* VPU through `/dev/mpp_service` (VDPU2, VEPU2, RKVDEC), RGA, IEP: with MPP 48962a10
+  built on the board and a patched `rockchipmpp` GStreamer plugin, H.264
+  encode/decode and JPEG decode work, including from a USB HDMI capture stick
+  (MS2130).
 
 ## Risks / not yet verified on hardware
 
@@ -65,8 +65,11 @@ Ordered by impact.
    attached.  Fallback documented in [40-kernel-port.md](40-kernel-port.md).
 6. **HDMI-RX pipeline** (X1301): vendor rkisp1 + tc35874x, format propagation via
    `media-ctl` ([70-hdmi-rx.md](70-hdmi-rx.md)); no X1301 has been attached yet.
-7. **VDD_LOG**: left as programmed by U-Boot (PWM2), same as the Toybrick port.
-8. RT kernel + gadget/ISP drivers: the tree's maintainer fixed several RT issues; new ones
+7. **The image's own MPP and librga** (shipped since 2026-11-20, no GStreamer plugin):
+   built and checked offline, including a plugin build against them, but not yet run on
+   the board. Rockchip's published `rockchipmpp` plugin has not been tested on this image.
+8. **VDD_LOG**: left as programmed by U-Boot (PWM2), same as the Toybrick port.
+9. RT kernel + gadget/ISP drivers: the tree's maintainer fixed several RT issues; new ones
    may surface under load (switch to `PREEMPT` if so).
 
 ## Next steps
